@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,10 +30,12 @@ import com.creditease.dbus.service.TableService;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.net.URLDecoder;
-import java.util.HashSet;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -138,11 +140,15 @@ public class TableController extends BaseController {
     @GetMapping("/delete/{tableId}")
     public ResultEntity deleteTable(@PathVariable Integer tableId) {
         try {
-            int size = tableService.countByTableId(tableId);
-            if(size != 0){
+            int size = tableService.countActiveTables(tableId);
+            if (size != 0) {
                 return resultEntityBuilder().status(MessageCode.TABLE_ALREADY_BE_USING).build();
             }
-            return tableService.deleteTable(tableId);
+            ResultEntity resultEntity = tableService.deleteTable(tableId);
+            if (resultEntity.getMessage() != null) {
+                return resultEntity;
+            }
+            return resultEntityBuilder().status(resultEntity.getStatus()).build();
         } catch (Exception e) {
             logger.error("Exception encountered while request deleteTable .", e);
             return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
@@ -352,11 +358,91 @@ public class TableController extends BaseController {
     @GetMapping("/riderSearch")
     public ResultEntity riderSearch() throws Exception {
         try {
-            return resultEntityBuilder().payload(tableService.riderSearch()).build();
+            Integer userId = currentUserId();
+            String userRole = currentUserRole();
+            return resultEntityBuilder().payload(tableService.riderSearch(userId, userRole)).build();
         } catch (Exception e) {
             logger.error("Exception encountered while request riderSearch .", e);
             return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
         }
     }
+
+    /**
+     * table 级别拖回重跑
+     *
+     * @param dsId
+     * @param dsName
+     * @param schemaName
+     * @param offset
+     * @return
+     */
+    @GetMapping("/rerun")
+    public ResultEntity rerun(Integer dsId, String dsName, String schemaName, String tableName, Long offset) {
+        try {
+            int result = tableService.rerun(dsId, dsName, schemaName, tableName, offset);
+            return resultEntityBuilder().status(result).build();
+        } catch (Exception e) {
+            logger.error("Exception encountered while rerun table ({})", dsName + "." + schemaName + "." + tableName, e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+    /**
+     * 批量激活止table
+     *
+     * @param
+     */
+    @PostMapping(path = "/batchStartTableByTableIds")
+    public ResultEntity batchStartTableByTableIds(@RequestBody ArrayList<Integer> tableIds) {
+        try {
+            ResultEntity resultEntity = tableService.batchStartTableByTableIds(tableIds);
+            if (StringUtils.isBlank(resultEntity.getMessage())) {
+                return resultEntityBuilder().status(resultEntity.getStatus()).build();
+            }
+            return resultEntityBuilder().build();
+        } catch (Exception e) {
+            logger.error("Exception encountered while request batchStartTableByTableIds.", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+    /**
+     * 批量停止table
+     *
+     * @param
+     */
+    @PostMapping(path = "/batchStopTableByTableIds")
+    public ResultEntity batchStopTableByTableIds(@RequestBody ArrayList<Integer> tableIds) {
+        try {
+            ResultEntity resultEntity = tableService.batchStopTableByTableIds(tableIds);
+            if (StringUtils.isBlank(resultEntity.getMessage())) {
+                return resultEntityBuilder().status(resultEntity.getStatus()).build();
+            }
+            return resultEntityBuilder().build();
+        } catch (Exception e) {
+            logger.error("Exception encountered while request startOrStopTableByTableIds.", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+    @PostMapping("/importRulesByTableId/{tableId}")
+    public ResultEntity importRulesByTableId(@PathVariable Integer tableId,
+                                             @RequestParam MultipartFile uploadFile) {
+        try {
+            return tableService.importRulesByTableId(tableId, uploadFile);
+        } catch (Exception e) {
+            logger.error("Exception encountered while request importRulesByTableId.", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+	@GetMapping("/exportRulesByTableId/{tableId}")
+	public void exportRulesByTableId(@PathVariable Integer tableId, HttpServletResponse response) {
+		try {
+			tableService.exportRulesByTableId(tableId, response);
+		} catch (Exception e) {
+			logger.error("Exception encountered while request exportRulesByTableId.", e);
+		}
+	}
 
 }

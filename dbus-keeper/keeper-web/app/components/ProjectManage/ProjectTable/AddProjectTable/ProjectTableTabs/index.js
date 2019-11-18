@@ -105,7 +105,7 @@ export default class ProjectTableTabs extends Component {
     temporaryData['encodes'] = encodes
     onSetEncodes(encodes)
     // 组装 resource
-    resource = { [`_${params['resource'].tableId}`]: params['resource'] }
+    resource = { [`_${params['resource'].projectTableId}`]: params['resource'] }
     temporaryData['resource'] = resource
     onSetResource(resource)
   };
@@ -122,6 +122,7 @@ export default class ProjectTableTabs extends Component {
       onSetSink,
       onSetResource,
       onSetTopology,
+      onSelectAllResource,
       onSetEncodes,
       onGetResourceList,
       onGetColumns,
@@ -150,7 +151,10 @@ export default class ProjectTableTabs extends Component {
             tab={
               <span>
                 <Icon type="appstore-o" />
-                资源选择
+                <FormattedMessage
+                  id="app.components.projectManage.projectTable.resourceChoice"
+                  defaultMessage="资源选择"
+                />
               </span>
             }
             key="resource"
@@ -172,6 +176,8 @@ export default class ProjectTableTabs extends Component {
                   topology={topology}
                   projectToposList={projectTopos}
                   onSetTopology={onSetTopology}
+                  onSelectAllResource={onSelectAllResource}
+                  projectTableStorage={projectTableStorage}
                   selectedTableScrollY={SELECTED_TABLE_SCROLL_Y}
                   resourceParams={resourceParams}
                   onSearchList={onGetResourceList}
@@ -192,7 +198,10 @@ export default class ProjectTableTabs extends Component {
             tab={
               <span>
                 <Icon type="schedule" />
-                Sink选择
+                <FormattedMessage
+                  id="app.components.projectManage.projectTable.sinkChoice"
+                  defaultMessage="Sink选择"
+                />
               </span>
             }
             key="sink"
@@ -228,6 +237,7 @@ ProjectTableTabs.propTypes = {
   onSetSink: PropTypes.func,
   onSetResource: PropTypes.func,
   onSetTopology: PropTypes.func,
+  onSelectAllResource: PropTypes.func,
   onSetEncodes: PropTypes.func,
   onGetResourceList: PropTypes.func,
   onGetColumns: PropTypes.func,

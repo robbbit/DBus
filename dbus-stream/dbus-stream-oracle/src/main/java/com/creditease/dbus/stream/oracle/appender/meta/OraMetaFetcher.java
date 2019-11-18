@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -229,7 +229,7 @@ public class OraMetaFetcher implements MetaFetcher {
 
             MetaWrapper meta = buildMeta(resultSet);
             if (meta == null) {
-                throw new MetaFetcherException(String.format("no privilege on table: %s.%s",schema, table));
+                throw new MetaFetcherException(String.format("no privilege on table: %s.%s", schema, table));
             }
             logger.debug(String.format("Meta[%s, %s, %d]:%s", schema, table, version, meta.toString()));
             meta.sortMetaCells();
@@ -267,8 +267,10 @@ public class OraMetaFetcher implements MetaFetcher {
         if (verMeta != null) {
             // copy default value
             for (MetaWrapper.MetaCell cell : currMeta.getColumns()) {
-                if (cell.getDefaultValue() != null) {
+                if (cell.getDefaultValue() != null && verMeta.contains(cell.getColumnName())) {
                     verMeta.get(cell.getColumnName()).setDefaultValue(cell.getDefaultValue());
+                } else {
+                    logger.warn("copy default value of {}", cell.getOwner() + "." + cell.getTableName() + "." + cell.getColumnName());
                 }
             }
             return verMeta;
@@ -347,7 +349,12 @@ public class OraMetaFetcher implements MetaFetcher {
             ps.setString(2, table);
             ResultSet resultSet = ps.executeQuery();
 
-            resultSet.next();
+            if (!resultSet.next()) {
+                TableComments tableComments = new TableComments();
+                tableComments.setOwner(schema);
+                tableComments.setTableName(table);
+                return tableComments;
+            }
             TableComments tableComments = new TableComments();
             tableComments.setOwner(resultSet.getString("owner"));
             tableComments.setTableName(resultSet.getString("table_name"));

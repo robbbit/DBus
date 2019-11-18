@@ -27,6 +27,7 @@ import com.creditease.dbus.domain.mapper.DataTableMapper;
 import com.creditease.dbus.domain.model.DataTable;
 import com.creditease.dbus.enums.DbusDatasourceType;
 import com.creditease.dbus.utils.ConfUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.ibatis.io.Resources;
 import org.apache.ibatis.jdbc.ScriptRunner;
 import org.slf4j.Logger;
@@ -41,9 +42,7 @@ import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.*;
 
-import static com.creditease.dbus.constant.KeeperConstants.GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS;
-import static com.creditease.dbus.constant.KeeperConstants.GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS_VERSION;
-import static com.creditease.dbus.constant.KeeperConstants.GLOBAL_CONF_KEY_INFLUXDB_URL;
+import static com.creditease.dbus.constant.KeeperConstants.*;
 
 /**
  * Created by xiancangao on 2018/05/04.
@@ -76,7 +75,7 @@ public class ToolSetService {
         try {
             if (dataTable.getDsType().equalsIgnoreCase("mysql")) {
                 connection = createDBConnection(dataTable);
-            } else {
+            } else if (dataTable.getDsType().equalsIgnoreCase("oracle")) {
                 Class.forName("oracle.jdbc.driver.OracleDriver");
                 connection = createDBConnection(dataTable);
             }
@@ -121,7 +120,7 @@ public class ToolSetService {
             if (dataTable.getDsType().equalsIgnoreCase("mysql")) {
                 connection = createDBConnection(dataTable);
                 sql = "select " + cols + " from " + dataTable.getSchemaName() + "." + dataTable.getTableName() + " limit ?";
-            } else {
+            } else if (dataTable.getDsType().equalsIgnoreCase("oracle")) {
                 Class.forName("oracle.jdbc.driver.OracleDriver");
                 connection = createDBConnection(dataTable);
                 sql = "select " + cols + " from " + dataTable.getSchemaName() + "." + dataTable.getTableName() + " where rownum < ?";
@@ -144,14 +143,29 @@ public class ToolSetService {
                     String columnName = rsmd.getColumnName(i);
                     Object obj = rs.getObject(i);
                     String columnType = map.get(columnName);
-                    if (KeeperConstants.SPLIT_COL_TYPE_PK.equals(columnType)) {
-                        columnType = "PK";
-                    } else if (KeeperConstants.SPLIT_COL_TYPE_UK.equals(columnType)) {
-                        columnType = "UK";
-                    } else {
-                        columnType = "COMMON_INDEX";
+                    String type = null;
+                    if (columnType.contains(KeeperConstants.SPLIT_COL_TYPE_PK)) {
+                        if (type != null) {
+                            type = type + "," + "PK";
+                        } else {
+                            type = "PK";
+                        }
                     }
-                    columns.put(columnName + "(" + columnType + ")", obj != null ? obj.toString() : null);
+                    if (columnType.contains(KeeperConstants.SPLIT_COL_TYPE_UK)) {
+                        if (type != null) {
+                            type = type + "," + "UK";
+                        } else {
+                            type = "UK";
+                        }
+                    }
+                    if (columnType.contains(KeeperConstants.SPLIT_COL_TYPE_COMMON_INDEX)) {
+                        if (type != null) {
+                            type = type + "," + "COMMON_INDEX";
+                        } else {
+                            type = "COMMON_INDEX";
+                        }
+                    }
+                    columns.put(columnName + "(" + type + ")", obj != null ? obj.toString() : null);
                 }
                 columnList.add(columns);
             }
@@ -188,7 +202,8 @@ public class ToolSetService {
                 logger.warn("Table has no  key, type ");
                 return null;
             }
-            if (dataTable.getDsType().equalsIgnoreCase("mysql")) {
+            if (dataTable.getDsType().equalsIgnoreCase("mysql")
+                    ) {
                 int index = 0;
                 Set<Map.Entry<String, String>> entries = result.entrySet();
                 for (Map.Entry<String, String> entry : entries) {
@@ -264,11 +279,11 @@ public class ToolSetService {
             shortTableName = tableName.substring(qualifierIndex + 1);
         }
         try {
-            String indexedColQuery;
+            String indexedColQuery = null;
             DbusDatasourceType dataBaseType = DbusDatasourceType.valueOf(table.getDsType().toUpperCase());
             if (dataBaseType == DbusDatasourceType.MYSQL) {
                 indexedColQuery = getMysqlIndexedColQuery(indexType);
-            } else {
+            } else if (dataBaseType == DbusDatasourceType.ORACLE) {
                 indexedColQuery = getOracleIndexedColQuery(indexType);
             }
             pStmt = conn.prepareStatement(indexedColQuery, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
@@ -277,7 +292,14 @@ public class ToolSetService {
             rset = pStmt.executeQuery();
 
             while (rset.next()) {
-                result.put(rset.getString(1), indexType);
+                if (dataBaseType == DbusDatasourceType.ORACLE || dataBaseType == DbusDatasourceType.MYSQL) {
+                    String columnName = rset.getString(1);
+                    if (result.containsKey(columnName)) {
+                        result.put(rset.getString(1), result.get(columnName) + "," + indexType);
+                    } else {
+                        result.put(rset.getString(1), indexType);
+                    }
+                }
             }
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
@@ -321,6 +343,7 @@ public class ToolSetService {
         return null;
     }
 
+
     public HashMap<String, String> getMgrDBMsg() throws Exception {
         HashMap<String, String> map = new HashMap<>();
         map.put("url", environment.getProperty("spring.datasource.url"));
@@ -329,16 +352,18 @@ public class ToolSetService {
         map.put("driverClassName", environment.getProperty("spring.datasource.driver-class-name"));
         map.put("zkServers", environment.getProperty("zk.str"));
         Properties properties = null;
-        if(zkService.isExists("/DBusInit")){
+        if (zkService.isExists("/DBusInit")) {
             properties = zkService.getProperties("/DBusInit");
             map.put(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS, properties.getProperty(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS));
             map.put(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS_VERSION, properties.getProperty(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS_VERSION));
-            map.put(GLOBAL_CONF_KEY_INFLUXDB_URL, properties.getProperty("influxdb.url"));
-        }else if(zkService.isExists("/DBus")){
+            map.put(GLOBAL_CONF_KEY_INFLUXDB_URL, properties.getProperty(GLOBAL_CONF_KEY_INFLUXDB_URL));
+            map.put(GLOBAL_CONF_KEY_INFLUXDB_URL_DBUS, properties.getProperty(GLOBAL_CONF_KEY_INFLUXDB_URL_DBUS));
+        } else if (zkService.isExists("/DBus")) {
             properties = zkService.getProperties(Constants.GLOBAL_PROPERTIES_ROOT);
             map.put(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS, properties.getProperty(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS));
             map.put(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS_VERSION, properties.getProperty(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS_VERSION));
             map.put(GLOBAL_CONF_KEY_INFLUXDB_URL, properties.getProperty(GLOBAL_CONF_KEY_INFLUXDB_URL));
+            map.put(GLOBAL_CONF_KEY_INFLUXDB_URL_DBUS, properties.getProperty(GLOBAL_CONF_KEY_INFLUXDB_URL_DBUS));
         }
         return map;
     }
@@ -440,4 +465,5 @@ public class ToolSetService {
                         + " AND c.TABLE_OWNER = t.OWNER AND c.TABLE_NAME = t.TABLE_NAME and c.COLUMN_NAME = t.COLUMN_NAME";
 
     }
+
 }

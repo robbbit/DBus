@@ -29,7 +29,8 @@ import java.util.Set;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.creditease.dbus.commons.*;
+import com.creditease.dbus.commons.Constants;
+import com.creditease.dbus.commons.ControlType;
 import com.creditease.dbus.router.base.DBusRouterBase;
 import com.creditease.dbus.router.bean.Ack;
 import com.creditease.dbus.router.bean.EmitWarp;
@@ -258,7 +259,17 @@ public class DBusRouterKafkaReadSpout extends BaseRichSpout {
     }
 
     private EmitWarp<ConsumerRecord<String, byte[]>> obtainEmitWarp(ConsumerRecord<String, byte[]> record, String key, String namespace) {
-        EmitWarp<ConsumerRecord<String, byte[]>> data = new EmitWarp<>(key);
+        String tempKey = key;
+        if (!StringUtils.equals("ctrl", key)) {
+            // eg. data_increment_heartbeat.oracle.db4_3.AMQUE.T_CONTACT_INFO.3.0.0.1531709399507|1531709398879|ok.wh_placeholder
+            //     data_increment_data.oracle.db4_3.AMQUE.T_CONTACT_INFO.3.0.0.1531709399889.wh_placeholder
+            // String[] arr = ArrayUtils.insert(5, StringUtils.split(key, "."), inner.topologyId);
+            // tempKey = StringUtils.joinWith(".", arr);
+            String[] arr = StringUtils.split(key, ".");
+            arr[2] = StringUtils.joinWith("!", arr[2], inner.topologyId);
+            tempKey = StringUtils.joinWith(".", arr);
+        }
+        EmitWarp<ConsumerRecord<String, byte[]>> data = new EmitWarp<>(tempKey);
         data.setData(record);
         data.setTableId(readSpoutConfig.getNamespaceTableIdPair().get(namespace));
         return data;
@@ -324,6 +335,7 @@ public class DBusRouterKafkaReadSpout extends BaseRichSpout {
         List<TopicPartition> assignTopics = new ArrayList<>();
         if (!isCtrl) {
             Properties props = inner.zkHelper.loadKafkaConsumerConf();
+            logger.info("read spout create consumer.");
             consumer = new KafkaConsumer<>(props);
         }
         assignTopics(consumer.partitionsFor(obtainCtrlTopic()), assignTopics);

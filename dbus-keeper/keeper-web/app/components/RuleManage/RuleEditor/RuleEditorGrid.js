@@ -127,6 +127,10 @@ RuleTypeTips.regexExtract = (
 RuleTypeTips.jsonPath = (
   <div>
     <p>从JSON中按key提取value</p>
+    <p>Field指定列，parameter指定要提取的Key</p>
+    <p>例如parameter为$['version']，表示提取XXX.version</p>
+    <p>如果需要提取深层的值，parameter可以填写为$['level1']['level2']['level3']，或为$['level1.level2.level3']</p>
+    <p>如果需要提取数组中的某一项，parameter可以填写为$['data'][0]，表示提取XXX.data[0]</p>
   </div>
 );
 
@@ -256,12 +260,18 @@ export default class RuleEditorGrid extends Component {
 
     const rules = this.props.rules.map((rule, i) => ({...rule, orderId: i}))
     const columns = [{
-      title: "Order",
+      title: <FormattedMessage
+        id="app.common.order"
+        defaultMessage="编号"
+      />,
       key: 'orderId',
       dataIndex: 'orderId',
-      width: 80,
+      width: 50,
     }, {
-      title: "Type",
+      title: <FormattedMessage
+        id="app.components.resourceManage.rule.ruleType"
+        defaultMessage="规则类型"
+      />,
       key: 'ruleTypeName',
       width: 200,
       render: (text) => (
@@ -298,7 +308,10 @@ export default class RuleEditorGrid extends Component {
     </span>
       )
     }, {
-      title: "Args",
+      title: <FormattedMessage
+        id="app.components.resourceManage.rule.ruleArgs"
+        defaultMessage="规则参数"
+      />,
       key: 'ruleGrammar',
       render: (text) => (text.isFold ?
         (<Popover
@@ -310,21 +323,24 @@ export default class RuleEditorGrid extends Component {
         (<EditRuleGrammar onRuleGrammarChange={this.handleRuleGrammarChange} rule={text}/>)
       )
     }, {
-      title: "Operation",
+      title: <FormattedMessage
+        id="app.common.operate"
+        defaultMessage="操作"
+      />,
       key: "operation",
       width: 180,
       render: (text) => (
         <span>
-          <Button shape="circle" title="Move up" icon="caret-up" size="default"
+          <Button shape="circle" title="Move up" icon="arrow-up" size="default"
                        onClick={() => this.moveUp(text.key)}/>
           <span className="ant-divider"/>
-          <Button shape="circle" title="Move down" icon="caret-down" size="default"
+          <Button shape="circle" title="Move down" icon="arrow-down" size="default"
                        onClick={() => this.moveDown(text.key)}/>
           <span className="ant-divider"/>
           <Button shape="circle" title="Run to this rule" icon="caret-right" size="default"
                        onClick={() => this.runToHere(text.key)}/>
           <span className="ant-divider"/>
-          <Button shape="circle" title="Delete" icon="close-circle" size="default"
+          <Button shape="circle" title="Delete" icon="close" size="default"
                        onClick={() => this.onDelete(text.key)}/>
         </span>
       )

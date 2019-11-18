@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -122,6 +122,8 @@ public class DBusRouterEncodeBolt extends BaseRichBolt {
         } catch (Exception e) {
             collector.fail(input);
             if (data.isUMS()) statWindows.correc(data.getNameSpace(), data.getSize());
+            logger.error("encode bolt execute error data: {}", JSON.toJSONString(data));
+            e.printStackTrace();
             logger.error("encode bolt execute error.", e);
             collector.reportError(e);
         }
@@ -274,11 +276,14 @@ public class DBusRouterEncodeBolt extends BaseRichBolt {
     }
 
     private String obtainNameSapce(String ns, Long tableId) {
-        if (fixOutTableVersionMap.get(tableId) == null)
-            return ns;
         // eg. mysql.caiwudb.fso_yao_db.customer_offline.4.0.0
-        // 把namespace的版本号替换成固定列输出版本号
+        // String[] vals = ArrayUtils.insert(4, StringUtils.split(ns, "."), inner.topologyId);
         String[] vals = StringUtils.split(ns, ".");
+        vals[1] = StringUtils.joinWith("!", vals[1], inner.topologyId);
+        if (fixOutTableVersionMap.get(tableId) == null)
+            return StringUtils.joinWith(".", vals);
+
+        // 把namespace的版本号替换成固定列输出版本号
         vals[4] = String.valueOf(fixOutTableVersionMap.get(tableId));
         return StringUtils.joinWith(".", vals);
     }
@@ -539,7 +544,7 @@ public class DBusRouterEncodeBolt extends BaseRichBolt {
 
     private DbusMessage.ProtocolType obtainProtocolType(String protocol) {
         if (StringUtils.equalsIgnoreCase(protocol, DbusMessage.ProtocolType.DATA_INCREMENT_DATA.toString()))
-            return DbusMessage.ProtocolType.DATA_INITIAL_DATA;
+            return DbusMessage.ProtocolType.DATA_INCREMENT_DATA;
         if (StringUtils.equalsIgnoreCase(protocol, DbusMessage.ProtocolType.DATA_INITIAL_DATA.toString()))
             return DbusMessage.ProtocolType.DATA_INITIAL_DATA;
         if (StringUtils.equalsIgnoreCase(protocol, DbusMessage.ProtocolType.DATA_INCREMENT_HEARTBEAT.toString()))

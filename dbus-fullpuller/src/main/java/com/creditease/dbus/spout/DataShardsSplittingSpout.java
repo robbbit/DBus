@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -116,17 +116,16 @@ public class DataShardsSplittingSpout extends BaseRichSpout {
 
             // 检查是否有遗留未决的拉取任务。如果有，resolve（发resume消息通知给appender，并在zk上记录，且将监测到的pending任务写日志，方便排查问题）。
             // 对于已经resolve的pending任务，将其移出pending队列，以免造成无限重复处理。
-            FullPullHelper.updatePendingTasksTrackInfo(zkService, dsName, null,DataPullConstants.FULLPULL_PENDING_TASKS_OP_CRASHED_NOTIFY);
+            FullPullHelper.updatePendingTasksTrackInfo(zkService, dsName, null, DataPullConstants.FULLPULL_PENDING_TASKS_OP_CRASHED_NOTIFY);
 
-            FullPullHelper.updatePendingTasksToHistoryTable(null, dsName,
-                    DataPullConstants.FULLPULL_PENDING_TASKS_OP_SPLIT_TOPOLOGY_RESTART,
-                    consumer, commonProps.getProperty(Constants.ZkTopoConfForFullPull.FULL_PULL_SRC_TOPIC),null);
+            FullPullHelper.updatePendingTasksToHistoryTable(dsName, DataPullConstants.FULLPULL_PENDING_TASKS_OP_SPLIT_TOPOLOGY_RESTART,
+                    consumer, commonProps.getProperty(Constants.ZkTopoConfForFullPull.FULL_PULL_SRC_TOPIC));
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOG.error(e.getMessage(),e);
             throw new InitializationException();
         }
-         LOG.info("Splitting Spout {} is started!", topologyId);
+        LOG.info("Splitting Spout {} is started!", topologyId);
     }
 
     /**
@@ -227,6 +226,8 @@ public class DataShardsSplittingSpout extends BaseRichSpout {
                         collector.emit(new Values(dataSourceInfo));
                     } else if (key.equals(DataPullConstants.DATA_EVENT_FULL_PULL_REQ)
                             || key.equals(DataPullConstants.DATA_EVENT_INDEPENDENT_FULL_PULL_REQ)) {
+                        LOG.info("Received full pull request: {}", dataSourceInfo);
+
                         //判断任务是否安全
                         if (!confirmTaskIsSecurity(dataSourceInfo)) {
                             return;
@@ -234,12 +235,11 @@ public class DataShardsSplittingSpout extends BaseRichSpout {
                         //判断能否继续分片(上一个任务状态必须是Ending/abort状态才可以开始新的分片)
                         waitForLastTaskEnd(dataSourceInfo);
                         //处理消息
-                        LOG.info("Received full pull request: {}", dataSourceInfo);
                         flowedMsgCount++;
 
                         // 每次拉取都要进行批次号加1处理。这条语句的位置不要变动。
                         dataSourceInfo = increseBatchNo(dataSourceInfo);
-                        FullPullHelper.updatePendingTasksTrackInfo(zkService, dsName, dataSourceInfo,DataPullConstants.FULLPULL_PENDING_TASKS_OP_ADD_WATCHING);
+                        FullPullHelper.updatePendingTasksTrackInfo(zkService, dsName, dataSourceInfo, DataPullConstants.FULLPULL_PENDING_TASKS_OP_ADD_WATCHING);
                         //创建zk节点并在zk节点上输出拉取信息
                         FullPullHelper.startSplitReport(zkService, dataSourceInfo);
                         collector.emit(new Values(dataSourceInfo), record);
@@ -255,9 +255,9 @@ public class DataShardsSplittingSpout extends BaseRichSpout {
 
                     if (key.equals(DataPullConstants.DATA_EVENT_FULL_PULL_REQ)
                             || key.equals(DataPullConstants.DATA_EVENT_FULL_PULL_REQ)) {
-                        FullPullHelper.updatePendingTasksTrackInfo(zkService, dsName, dataSourceInfo,DataPullConstants.FULLPULL_PENDING_TASKS_OP_REMOVE_WATCHING);
-                        FullPullHelper.finishPullReport(zkService, dataSourceInfo,FullPullHelper.getCurrentTimeStampString(),
-                                Constants.DataTableStatus.DATA_STATUS_ABORT,errorMsg);
+                        FullPullHelper.updatePendingTasksTrackInfo(zkService, dsName, dataSourceInfo, DataPullConstants.FULLPULL_PENDING_TASKS_OP_REMOVE_WATCHING);
+                        FullPullHelper.finishPullReport(zkService, dataSourceInfo, FullPullHelper.getCurrentTimeStampString(),
+                                Constants.DataTableStatus.DATA_STATUS_ABORT, errorMsg);
                     }
                     throw e;
                 }
@@ -310,89 +310,122 @@ public class DataShardsSplittingSpout extends BaseRichSpout {
             pst = conn.prepareStatement(sql.toString());
             pst.setLong(1, id);
             pst.executeUpdate();
-            LOG.info("任务对应的表不能拉全量. update state to abort id:{} \n. dataSourceInfo:{}", id, dataSourceInfo);
+            LOG.error("任务对应的表不能拉全量. update state to abort id:{} \n. dataSourceInfo:{}", id, dataSourceInfo);
             return false;
         } catch (Exception e) {
             //出于安全考考虑,查询出错不能拉全量
             LOG.error("Exception Info:{}", e);
             return false;
         } finally {
-            try {
-                if (ret != null) {
-                    ret.close();
-                }
-                if (pst != null) {
-                    pst.close();
-                }
-                if (conn != null) {
-                    conn.close();
-                }
-            } catch (SQLException e) {
-                LOG.error("Exception Info:{}", e);
-            }
-
+            DBHelper.close(conn, pst, ret);
         }
     }
 
     /**
      * 只能有一个任务处于splitting,puliing的状态
      * 阻断增量的拉全量暂时没有好的处理办法,可能会有normal和indepent的任务同时处于splitting和pulling
+     *
      * @param dataSourceInfo
      */
-    private void waitForLastTaskEnd(String dataSourceInfo) {
+   private void waitForLastTaskEnd(String dataSourceInfo) {
         JSONObject jsonObject = JSONObject.parseObject(dataSourceInfo);
         Long id = jsonObject.getJSONObject("payload").getLong(DataPullConstants.FULL_DATA_PULL_REQ_PAYLOAD_SEQNO);
         Connection conn = null;
         PreparedStatement pst = null;
         ResultSet ret = null;
-        boolean flag = true;
         try {
             conn = DBHelper.getDBusMgrConnection();
             StringBuilder sql = new StringBuilder();
-            sql.append(" SELECT  h.id ,h.state FROM t_fullpull_history h ");
-            if(isGlobal){
+
+            sql.append(" SELECT  p.id ,p.full_pull_req_msg_offset FROM ");
+            sql.append("( SELECT  h.id ,h.full_pull_req_msg_offset,h.state FROM t_fullpull_history h ");
+            if (isGlobal) {
                 sql.append(" WHERE h.type = 'global'");
-            }else{
+            } else {
                 sql.append(" WHERE h.type = 'indepent' and h.dsName = '").append(dsName).append("'");
             }
-            sql.append(" and h.id < ").append(id);
-            sql.append(" ORDER BY h.id DESC LIMIT 1 ");
+            sql.append(" and h.id < ").append(id).append(" and h.full_pull_req_msg_offset is not NULL ");
+            sql.append(" ORDER BY h.id DESC LIMIT 1 )p ").append(" where p.state not in ('ending','abort')");
 
-            while (flag) {
+            LOG.info("last task sql: {}",sql.toString());
+            while (true) {
                 pst = conn.prepareStatement(sql.toString());
                 ret = pst.executeQuery();
                 if (ret.next()) {
-                    String state = ret.getString("state");
-                    long LId = ret.getLong("id");
-                    if (StringUtils.isNotBlank(state) && ("ending".equals(state) || "abort".equals(state))) {
-                        break;
-                    }
-                    LOG.info("waitting for last task to end . id:{} ", LId);
+                    LOG.info("waitting for last task to end . id:{} offset:{}", ret.getLong("id"),ret.getLong("full_pull_req_msg_offset"));
                     TimeUnit.MILLISECONDS.sleep(60000);
-                } else {
-                    break;
+                }else{
+                    return;
                 }
             }
         } catch (Exception e) {
             LOG.error("Exception Info:{}", e);
         } finally {
-            try {
-                if (ret != null) {
-                    ret.close();
-                }
-                if (pst != null) {
-                    pst.close();
-                }
-                if (conn != null) {
-                    conn.close();
-                }
-            } catch (SQLException e) {
-                LOG.error("Exception Info:{}", e);
-            }
+            DBHelper.close(conn, pst, ret);
         }
-
-
     }
+
+    /*private void waitForLastTaskEnd(String dataSourceInfo) {
+        JSONObject jsonObject = JSONObject.parseObject(dataSourceInfo);
+        Long id = jsonObject.getJSONObject("payload").getLong(DataPullConstants.FULL_DATA_PULL_REQ_PAYLOAD_SEQNO);
+        Connection conn = null;
+        PreparedStatement pst = null;
+        ResultSet ret = null;
+        try {
+            Long thisOffset = null;
+            Long lastOffset = null;
+            Long lastId = null;
+            conn = DBHelper.getDBusMgrConnection();
+            StringBuilder sql = new StringBuilder();
+
+            sql.append(" SELECT id ,full_pull_req_msg_offset offset FROM t_fullpull_history WHERE full_pull_req_msg_offset is not NULL and id = ").append(id);
+            sql.append(" UNION SELECT  p.id ,p.full_pull_req_msg_offset offset FROM ");
+            sql.append("( SELECT  h.id ,h.full_pull_req_msg_offset,h.state FROM t_fullpull_history h ");
+            if (isGlobal) {
+                sql.append(" WHERE h.type = 'global'");
+            } else {
+                sql.append(" WHERE h.type = 'indepent' and h.dsName = '").append(dsName).append("'");
+            }
+            sql.append(" and h.id < ").append(id).append(" and h.full_pull_req_msg_offset is not NULL ");
+            sql.append(" ORDER BY h.id DESC LIMIT 1 )p ").append(" where p.state not in ('ending','abort')");
+
+            LOG.info("last task sql: {}",sql.toString());
+
+            while (true) {
+                pst = conn.prepareStatement(sql.toString());
+                ret = pst.executeQuery();
+                while (ret.next()) {
+                    if (id.equals(ret.getLong("id"))) {
+                        thisOffset = ret.getLong("offset");
+                    } else {
+                        lastId = ret.getLong("id");
+                        lastOffset = ret.getLong("offset");
+                    }
+                }
+                LOG.info("waitting for last task to end .thisId:{} ,thisOffset:{} ,lastId:{} , lastOffset:{}", id, thisOffset, lastId, lastOffset);
+                //测试发现拉全量full_pull_req_msg_offset数值更新数据库比较慢,但是任务已经来了,就会导致取出的thisOffset是null
+                if (thisOffset == null) {
+                    //等待数据库完成update full_pull_req_msg_offset 并且提交了事务,才能查询到真正的full_pull_req_msg_offset数值
+                    TimeUnit.MILLISECONDS.sleep(1000);
+                    LOG.info("thisOffset is null");
+                    continue;
+                }
+                if (lastOffset == null) {
+                    return;
+                }
+                if (thisOffset < lastOffset) {
+                    return;
+                }
+                TimeUnit.MILLISECONDS.sleep(60000);
+                lastOffset = null;
+                lastId = null;
+            }
+        } catch (Exception e) {
+            LOG.error("Exception Info:{}", e);
+        } finally {
+            DBHelper.close(conn, pst, ret);
+        }
+    }*/
 
     /**
      * 定义字段id，该id在简单模式下没有用处，但在按照字段分组的模式下有很大的用处。
@@ -536,19 +569,7 @@ public class DataShardsSplittingSpout extends BaseRichSpout {
         } catch (Exception e) {
             LOG.error("Exception happened when try to get newest version from mysql db. Exception Info:", e);
         } finally {
-            try {
-                if (ret != null) {
-                    ret.close();
-                }
-                if (pst != null) {
-                    pst.close();
-                }
-                if (conn != null) {
-                    conn.close();
-                }
-            } catch (SQLException e) {
-                LOG.error("Exception Info:", e);
-            }
+            DBHelper.close(conn, pst, ret);
         }
 
         try {

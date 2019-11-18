@@ -200,10 +200,12 @@ export default class ProjectHome extends Component {
     } else if (!params.sink || Object.keys(params.sink).length === 0) {
       this.setState({ modalActiveTab: 'sink', errorFlag: 'sinkForm' })
       return false
-    } else if (!params.resource || Object.keys(params.resource).length === 0) {
+    }
+    /*else if (!params.resource || Object.keys(params.resource).length === 0) {
       this.setState({ modalActiveTab: 'resource', errorFlag: 'resourceForm' })
       return false
-    } else if (!params.alarm || alarmFlag) {
+    } */
+    else if (!params.alarm || alarmFlag) {
       this.setState({ modalActiveTab: 'alarm' })
       return false
     }
@@ -239,7 +241,7 @@ export default class ProjectHome extends Component {
     )
     temporaryData['sinks'] = sinks
     // resources
-    resources = Object.values(params['resource']).map(
+    resources = params['resource'] && Object.values(params['resource']).map(
       item =>
         projectId
           ? {
@@ -311,7 +313,8 @@ export default class ProjectHome extends Component {
     return (
       <Modal
         key={modalKey}
-        className="tabs-modal modal-min-height"
+        // className="tabs-modal modal-min-height"
+        className="full-modal modal-min-height"
         visible={modalVisibal}
         maskClosable={false}
         width={this.modalWidth}

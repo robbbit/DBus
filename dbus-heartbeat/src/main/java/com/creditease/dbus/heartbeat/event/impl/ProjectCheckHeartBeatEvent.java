@@ -105,6 +105,9 @@ public class ProjectCheckHeartBeatEvent extends AbstractEvent{
 
                         //根据path信息初始化node
                         node = initNodeAttribute(node,path,basePath);
+                        if(!checkNodeInfo(node)){
+                            continue;
+                        }
                         cdl.await();
                         //根据dsName/schemaName判断，如果拉全量先不处理
                         String key = StringUtils.join(new String[] {node.getDsName(), node.getSchema()}, "/");
@@ -176,16 +179,18 @@ public class ProjectCheckHeartBeatEvent extends AbstractEvent{
             String databaseSchemaName = node.getDsName() + "/" + node.getSchema();
 
 
-          if (notBlankAndEqual(projectNameWk,node,AttributeType.PROJECT_NAME)) {
+          if (notBlankAndEqual(projectNameWk,node,AttributeType.PROJECT_NAME)
+                  && notBlankAndEqual(dsNameWk,node,AttributeType.DS_NAME)
+                  && notBlankAndEqual(schemaNameWk,node,AttributeType.SCHEMA_NAME)) {
 
                 /* 判断是超时还是主备，主备的略过 */
 
                 long masterSlaveDelayTimeout = HeartBeatConfigContainer.getInstance().getHbConf().getMasterSlaveDelayTimeout();
                 String masterSlaveDealyPath = HeartBeatConfigContainer.getInstance().getHbConf().getMonitorPath();
-               //tableNameWk = testdb.test.actor;
-               String[] dsSchemaName = tableNameWk.split("\\.");
+               //node生产策略改变，该字段抛弃
+               //String[] dsSchemaName = tableNameWk.split("\\.");
 
-                masterSlaveDealyPath = StringUtils.join(new String[] {masterSlaveDealyPath, dsSchemaName[0], dsSchemaName[1]}, "/");
+                masterSlaveDealyPath = StringUtils.join(new String[] {masterSlaveDealyPath, dsNameWk, schemaNameWk}, "/");
                 MasterSlaveDelayVo msdVo = deserialize(masterSlaveDealyPath, MasterSlaveDelayVo.class);
                 long delayTime = 0l;
                 long synTime = 0l;
@@ -198,7 +203,7 @@ public class ProjectCheckHeartBeatEvent extends AbstractEvent{
               if (delayTime > masterSlaveDelayTimeout) {
                   html.delete(0, html.length());
                   return;
-              } else if (html.length() > 0 && ((currentTime - synTime) > 1000 * 60 * 1)) {
+              } else if (html.length() > 0 && ((currentTime - synTime) > 1000 * 60 * 10)) {
                   // 为了防止主备库刚刚追上产生的延时报警, 给程序10分钟的一个追数据的时间
                   // 如果10分钟还有追上数据就报警
 
@@ -323,8 +328,12 @@ public class ProjectCheckHeartBeatEvent extends AbstractEvent{
                     }
                 } else {
                     //如果是末端叶子节点，那么将完整的路径加入到结果集
-                    LOG.info("add nodePath" + basePath);
-                    result.add(basePath);
+                    if(!HeartBeatConfigContainer.getInstance().getHbConf().getProjectMonitorPath()
+                            .equals(basePath)){// 默认的base path不加入
+                        LOG.info("add nodePath : " + basePath);
+                        result.add(basePath);
+                    }
+
                 }
                 return result;
             }
@@ -351,15 +360,28 @@ public class ProjectCheckHeartBeatEvent extends AbstractEvent{
         node.setTopoName(StringUtils.substringAfterLast(projectTopoName,"/"));
 
         //ds1.schema1.table1
-        String leafNodeName = StringUtils.substringBefore(path,"/");
-        node.setTableName(StringUtils.substringAfterLast(path,"/"));
+        String leafNodeName = StringUtils.substringAfterLast(path,"/");
+        node.setTableName(StringUtils.substringAfterLast(path,"."));
 
         //ds1.schema1
-        String datasourceSchemaName = StringUtils.substringAfterLast(leafNodeName,".");
+        String datasourceSchemaName = StringUtils.substringBeforeLast(leafNodeName,".");
         node.setDsName(StringUtils.substringBefore(datasourceSchemaName,"."));
         node.setSchema(StringUtils.substringAfter(datasourceSchemaName,"."));
 
+        LOG.info(MsgUtil.format("node info: project: {0}, topo: {1}, ds: {2}, schema: {3}, table: {4}",
+                node.getProjectName(),node.getTopoName(),node.getDsName(),node.getSchema(),node.getTableName()));
         return node;
+    }
+
+    private boolean checkNodeInfo(ProjectMonitorNodeVo node){
+        if(StringUtils.isBlank(node.getProjectName()) || StringUtils.isBlank(node.getTopoName())
+                || StringUtils.isBlank(node.getDsName()) || StringUtils.isBlank(node.getSchema())
+                || StringUtils.isBlank(node.getTableName())){
+            LOG.info(MsgUtil.format("check node info error: project: {0}, topo: {1}, ds: {2}, schema: {3}, table: {4}",
+                    node.getProjectName(),node.getTopoName(),node.getDsName(),node.getSchema(),node.getTableName()));
+            return false;
+        }
+        return true;
     }
 
 }

@@ -31,7 +31,7 @@ import java.util.Base64;
  * Created by Shrimp on 16/5/26.
  */
 public enum DataType {
-    STRING, INT, LONG, FLOAT, DOUBLE, BOOLEAN, DATE, DATETIME, DECIMAL, BINARY ,RAW;
+    STRING, INT, LONG, FLOAT, DOUBLE, BOOLEAN, DATE, DATETIME, DECIMAL, BINARY ,RAW,JSONOBJECT;
 
     private String value;
 
@@ -142,6 +142,7 @@ public enum DataType {
         return datatype;
     }
 
+
     public static DataType convertJsonLogDataType(String type) {
         type = type.toUpperCase();
         DataType datatype = null;
@@ -170,6 +171,12 @@ public enum DataType {
             case "LONG":
                 datatype = DataType.LONG;
                 break;
+            case "DOUBLE":
+                datatype = DataType.DOUBLE;
+                break;
+            case "DATE":
+                datatype = DataType.DATE;
+                break;
             case "BIGDECIMAL":
                 datatype = DataType.DECIMAL;
                 break;
@@ -192,9 +199,11 @@ public enum DataType {
             return convertMysqlDataType(type);
         }
 
+
         if (DbusDatasourceType.stringEqual(dataSourceType, DbusDatasourceType.LOG_LOGSTASH_JSON)) {
             return convertJsonLogDataType(type);
         }
+
 
         // 这里复用json的类型转换函数
         if (DbusDatasourceType.stringEqual(dataSourceType, DbusDatasourceType.ES_SQL_BATCH)) {
@@ -227,6 +236,7 @@ public enum DataType {
                 } catch (UnsupportedEncodingException e) {
                     throw new EncodeException("UnsupportedEncoding");
                 }
+            case JSONOBJECT://jsonObject也转为String
             case STRING:
                 // 此项主要应对RAW类型转成String的情况，取值的时候，直接返回toString()
                 // 否则RAW类型的数值，走到default的时候，不符合CharSequence.class.isInstance条件，会报错。

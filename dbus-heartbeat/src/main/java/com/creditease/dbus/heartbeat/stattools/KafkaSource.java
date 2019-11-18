@@ -21,12 +21,12 @@
 package com.creditease.dbus.heartbeat.stattools;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.TreeMap;
 
 import javax.xml.bind.PropertyException;
 
@@ -78,6 +78,9 @@ public class KafkaSource {
         statProps.setProperty("enable.auto.commit", "false");
         List<TopicPartition> topics = Arrays.asList(statTopicPartition);
 
+        LOG.info("StatMessage: set max.poll.records=200");
+        statProps.setProperty("max.poll.records", "200");
+
         consumer = new KafkaConsumer(statProps);
         consumer.assign(topics);
 
@@ -98,31 +101,36 @@ public class KafkaSource {
     }
 
 
-    public Map<Long, StatMessage> poll() {
+    public List<StatMessage> poll() {
                     /* 快速取，如果没有就立刻返回 */
         ConsumerRecords<String, String> records = consumer.poll(1000);
         if (records.count() == 0) {
             count++;
             if (count % 60 == 0) {
                 count = 0;
-                LOG.info(String.format("running on %s (offset=%d).......", statTopic,  consumer.position(statTopicPartition)));
+                LOG.info(String.format("KafkaSource running on %s (offset=%d).......", statTopic,  consumer.position(statTopicPartition)));
             }
             return null;
         }
 
-        LOG.info(String.format("KafkaSource got %d records......", records.count()));
-
-        Map<Long, StatMessage> map = new TreeMap<>();
+        List<StatMessage> list = new ArrayList<>();
+        long maxOffset = 0l;
         for (ConsumerRecord<String, String> record : records) {
             String key = record.key();
-            long offset = record.offset();
-            if(StringUtils.isEmpty(record.value())) continue;
-            StatMessage msg = StatMessage.parse(record.value());
-            map.put(offset, msg);
-            //logger.info(String.format("KafkaSource got record key=%s, offset=%d......", key, offset));
+            if (record.offset() > maxOffset) maxOffset = record.offset();
+            if (StringUtils.isEmpty(record.value())) continue;
+            try {
+                StatMessage msg = StatMessage.parse(record.value());
+                list.add(msg);
+            } catch (Exception ex) {
+                LOG.error("KafkaSource parse stat json error " + ex.getMessage());
+                LOG.error(String.format("KafkaSource got record offset=%d, value=%s, ......", record.offset(), record.value()));
+            }
         }
 
-        return map;
+        LOG.info(String.format("KafkaSource got %d records, max offset: %d", records.count(), maxOffset));
+
+        return list;
     }
 
     public void commitOffset() {

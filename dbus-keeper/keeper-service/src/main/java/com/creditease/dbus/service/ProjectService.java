@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -40,14 +40,14 @@ import com.creditease.dbus.commons.IZkService;
 import com.creditease.dbus.constant.KeeperConstants;
 import com.creditease.dbus.constant.ProjectRemainTimeType;
 import com.creditease.dbus.constant.ProjectStatus;
-import com.creditease.dbus.domain.mapper.ProjectMapper;
-import com.creditease.dbus.domain.mapper.ProjectUserMapper;
+import com.creditease.dbus.domain.mapper.*;
 import com.creditease.dbus.domain.model.Project;
+import com.creditease.dbus.domain.model.ProjectTopoTable;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
@@ -70,12 +70,22 @@ public class ProjectService {
 
     @Autowired
     private ProjectMapper mapper;
-
     @Autowired
     private ProjectUserMapper projectUserMapper;
-
+    @Autowired
+    private ProjectTopoTableMapper projectTopoTableMapper;
     @Autowired
     private IZkService zkService;
+    @Autowired
+    private ProjectTopoTableEncodeOutputColumnsMapper encodeColumnsMapper;
+    @Autowired
+    private ProjectTopoTableMetaVersionMapper metaVersionMapper;
+    @Autowired
+    private ProjectEncodeHintMapper encodeHintMapper;
+    @Autowired
+    private ProjectResourceMapper resourceMapper;
+
+
 
     private Logger logger = LoggerFactory.getLogger(getClass());
 
@@ -85,13 +95,15 @@ public class ProjectService {
                                          int pageNum,
                                          int pageSize,
                                          String sortby,
-                                         String order) {
+                                         String order,
+                                         Integer hasDbaEncode) {
         Map<String, Object> param = new HashMap<>();
         param.put("dsName", dsName);
         param.put("schemaName", schemaName);
         param.put("tableName", tableName);
         param.put("sortby", sortby);
         param.put("order", order);
+        param.put("hasDbaEncode", hasDbaEncode);
         PageHelper.startPage(pageNum, pageSize);
         List<Map<String, Object>> resources = mapper.selectResources(param);
         // 分页结果
@@ -116,7 +128,46 @@ public class ProjectService {
     }
 
     public int delete(int id) {
-        return mapper.deleteByPrimaryKey(id);
+        Project project = this.select(id);
+        if (project != null) {
+            logger.info("********* delete project start ,projectId:{},projectName;{} *********",
+                    project.getId(), project.getProjectName());
+            try {
+                String path = StringUtils.joinWith("/", Constants.ROUTER_ROOT, project.getProjectName());
+                if (zkService.isExists(path)) {
+                    zkService.rmr(path);
+                    logger.info("delete project znode:{}", path);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            long start = System.currentTimeMillis();
+            encodeColumnsMapper.deleteByProjectId(id);
+            long start1 = System.currentTimeMillis();
+            logger.info("delete table t_project_topo_table_encode_output_columns success,cost time {}", start1 - start);
+
+            metaVersionMapper.deleteByProjectId(id);
+            long start2 = System.currentTimeMillis();
+            logger.info("delete table t_project_topo_table_meta_version success,cost time {}", start2 - start1);
+
+            encodeHintMapper.deleteByProjectId(id);
+            long start3 = System.currentTimeMillis();
+            logger.info("delete table t_project_encode_hint success,cost time {}", start3 - start2);
+
+            resourceMapper.deleteByProjectId(id);
+            long start4 = System.currentTimeMillis();
+            logger.info("delete table t_project_resource success,cost time {}", start4 - start3);
+
+            projectTopoTableMapper.deleteByProjectId(id);
+            long start5 = System.currentTimeMillis();
+            logger.info("delete table t_project_topo_table success,cost time {}", start5 - start4);
+
+            mapper.deleteByPrimaryKey(id);
+            long start6 = System.currentTimeMillis();
+            logger.info("delete table t_project_topo,t_project_sink,t_project_sink,t_project_user success,cost time {}", start6 - start5);
+            logger.info("******* delete project end ,projectId:{},projectName;{} cost time {} ******", start6 - start);
+        }
+        return 0;
     }
 
     public List<Map<String, Object>>  queryProjects(Map<String, Object> param) {
@@ -320,5 +371,17 @@ public class ProjectService {
         map.put("order", order);
         PageHelper.startPage(pageNum, pageSize);
         return new PageInfo(mapper.search(map));
+    }
+
+    public List<ProjectTopoTable> getRunningTopoTables(Integer id) {
+        return projectTopoTableMapper.selectRunningByProjectId(id);
+    }
+
+    public List<Map<String, Object>> getAllResourcesByQuery(String dsName, String schemaName, String tableName) {
+        Map<String, Object> param = new HashMap<>();
+        param.put("dsName", dsName);
+        param.put("schemaName", schemaName);
+        param.put("tableName", tableName);
+        return mapper.selectResources(param);
     }
 }

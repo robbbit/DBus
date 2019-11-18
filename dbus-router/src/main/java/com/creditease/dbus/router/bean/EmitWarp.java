@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -51,10 +51,10 @@ public class EmitWarp<T> implements Serializable {
         this.key = key;
         if (isHB() || isUMS()) {
             String[] vals = StringUtils.split(key, ".");
-            nameSpace = StringUtils.joinWith(".", vals[2], vals[3], vals[4]);
-            dsName = vals[2];
+            dsName = StringUtils.split(vals[2], "!")[0];
             schemaName = vals[3];
             tableName = vals[4];
+            nameSpace = StringUtils.joinWith(".", dsName, schemaName, tableName);
             if (isHB()) {
                 if (StringUtils.contains(vals[8], "|")) {
                     String times[] = StringUtils.split(vals[8], "|");
@@ -75,19 +75,29 @@ public class EmitWarp<T> implements Serializable {
     }
 
     public boolean isCtrl() {
-        return StringUtils.contains(key, "ctrl");
+        return StringUtils.equals(key, "ctrl");
     }
 
     public boolean isStat() {
-        return StringUtils.contains(key, "stat");
+        return StringUtils.equals(key, "stat");
     }
 
     public boolean isMysql() {
-        return StringUtils.contains(key, "mysql");
+        boolean ret = false;
+        String[] vals = StringUtils.split(key, ".");
+        if (vals != null && vals.length > 2) {
+            ret = StringUtils.equalsIgnoreCase(vals[1], "mysql");
+        }
+        return ret;
     }
 
     public boolean isOracle() {
-        return StringUtils.contains(key, "oracle");
+        boolean ret = false;
+        String[] vals = StringUtils.split(key, ".");
+        if (vals != null && vals.length > 2) {
+            ret = StringUtils.equalsIgnoreCase(vals[1], "oracle");
+        }
+        return ret;
     }
 
     public T getData() {

@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,6 +20,9 @@
 
 package com.creditease.dbus.controller;
 
+import java.util.List;
+import java.util.Map;
+
 import com.creditease.dbus.base.BaseController;
 import com.creditease.dbus.base.ResultEntity;
 import com.creditease.dbus.constant.MessageCode;
@@ -28,11 +31,15 @@ import com.creditease.dbus.domain.model.ProjectTopoTableEncodeOutputColumns;
 import com.creditease.dbus.domain.model.ProjectTopoTableMetaVersion;
 import com.creditease.dbus.service.ProjectTableService;
 import com.github.pagehelper.PageInfo;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Created with IntelliJ IDEA
@@ -64,6 +71,19 @@ public class ProjectTableController extends BaseController{
         return resultEntityBuilder().payload(page).build();
     }
 
+    @GetMapping("/search-table-nopage")
+    public ResultEntity searchTable(String dsName, String schemaName, String tableName, Integer projectId, Integer topoId) {
+        List<Map<String, Object>> topoTables = tableService.queryTable(dsName, schemaName, tableName, projectId, topoId);
+        return resultEntityBuilder().payload(topoTables).build();
+    }
+
+    @PostMapping("/search-tables")
+    public ResultEntity searchTable(@RequestBody List<Integer> topoTableIds) {
+        List<Map<String, Object>> topoTables = tableService.queryTable(topoTableIds);
+        return resultEntityBuilder().payload(topoTables).build();
+    }
+
+
     /**
      * 添加table页的resource搜索项
      */
@@ -74,10 +94,11 @@ public class ProjectTableController extends BaseController{
                                     @RequestParam(defaultValue = "1") Integer pageNum,
                                     @RequestParam(defaultValue = "10")Integer pageSize,
                                     @RequestParam Integer projectId,
-                                       @RequestParam Integer topoId){
+                                       @RequestParam Integer topoId,
+                                       @RequestParam(required = false) Integer hasDbaEncode){
 
         PageInfo<Map<String,Object>> page = tableService.queryResource(dsName,schemaName,tableName,
-                pageNum,pageSize,projectId,topoId);
+                pageNum,pageSize,projectId,topoId,hasDbaEncode);
         return resultEntityBuilder().payload(page).build();
     }
 
@@ -113,16 +134,9 @@ public class ProjectTableController extends BaseController{
         return resultEntityBuilder().payload(tableService.getDSNames(projectId)).build();
     }
 
-    @GetMapping("/delete-by-table-id/{id}")
-    public ResultEntity deleteByTableId(@PathVariable int id){
-        int deleteResult = tableService.deleteByTableId(id);
-        if(deleteResult == ProjectTableService.TABLE_NOT_FOUND){
-            return resultEntityBuilder().status(MessageCode.TABLE_NOT_EXISTS).build();
-        }else if(deleteResult == ProjectTableService.TABLE_IS_RUNNING){
-            return resultEntityBuilder().status(MessageCode.TABLE_IS_RUNNING).build();
-        }else {
-            return resultEntityBuilder().payload(deleteResult).build();
-        }
+    @GetMapping("/delete-by-table-id/{id}/{topoStatus}")
+    public ResultEntity deleteByTableId(@PathVariable int id,@PathVariable String topoStatus){
+        return resultEntityBuilder().status(tableService.deleteByTableId(id, topoStatus)).build();
     }
 
     @GetMapping("/delete-column-by-table-id/{id}")
@@ -147,7 +161,7 @@ public class ProjectTableController extends BaseController{
 
     /**
      * @return 数据格式：{
-     *     sink:{"sinkId":1,"ouputType":json/ums1.1","outputTopic":"db2test"},
+     *     sink:{"sinkId":1,"ouputType":json/ums1.1","outputTopic":"test2test"},
      *     resource:{"schemaName":"xx",..,"topoId":1},
      *     "encodes":{
      *                "1":{"outputListType":"1","encodeOutputColumns":[
@@ -242,4 +256,43 @@ public class ProjectTableController extends BaseController{
     public ResultEntity countByTableId(@PathVariable Integer tableId){
         return resultEntityBuilder().payload(tableService.countByTableId(tableId)).build();
     }
+
+    @GetMapping("/getTopoTablesByUserId/{userId}")
+    public ResultEntity getTopoTablesByUserId(@PathVariable Integer userId){
+        return resultEntityBuilder().payload(tableService.getTopoTablesByUserId(userId)).build();
+    }
+
+    @GetMapping("/getAllResourcesByQuery")
+    public ResultEntity getAllResourcesByQuery(String dsName, String schemaName, String tableName,
+                                               @RequestParam Integer projectId, @RequestParam Integer topoId ) {
+        return resultEntityBuilder().payload(tableService.getAllResourcesByQuery(dsName, schemaName, tableName, projectId, topoId)).build();
+    }
+
+    @GetMapping("/uottcisp/{projectId}/{tableId}/{topoId}")
+    public ResultEntity underOtherTopologyTableCountInSameProject(@PathVariable Integer projectId,
+                                                                  @PathVariable Integer tableId,
+                                                                  @PathVariable Integer topoId ) {
+        return resultEntityBuilder().payload(tableService.underOtherTopologyTableCountInSameProject(projectId, tableId, topoId)).build();
+    }
+
+    /**
+     * 根据topoTableId获取
+     * ds_name,schema_name,table_name, project_name,topo_name
+     */
+    @GetMapping("/getNamesByTopoTableId/{topoTableId}")
+    public ResultEntity getNamesByTopoTableId(@PathVariable Integer topoTableId) {
+        return resultEntityBuilder().payload(tableService.getNamesByTopoTableId(topoTableId)).build();
+    }
+
+    @PostMapping("/getTopoTablesByIds")
+    public ResultEntity getTopoTablesByIds(@RequestBody List<Integer> topoTableIds) {
+        return resultEntityBuilder().payload(tableService.getTopoTablesByIds(topoTableIds)).build();
+    }
+
+    @PostMapping("/updateStatusByTopoTableIds")
+    public ResultEntity updateStatusByTopoTableIds(@RequestParam String status, @RequestBody List<Integer> topoTableIds) {
+        tableService.updateStatusByTopoTableIds(status, topoTableIds);
+        return resultEntityBuilder().build();
+    }
+
 }

@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.creditease.dbus.commons.Constants;
 import com.creditease.dbus.commons.ControlType;
@@ -105,10 +106,12 @@ public class DBusRouterMonitorSpout extends BaseRichSpout {
                             isCtrl = false;
                             processData(record);
                         }
-                        doAck(isCtrl, record.topic(), record.partition(), record.offset(), consumer);
+                        if (!isReload)
+                            doAck(isCtrl, record.topic(), record.partition(), record.offset(), consumer);
                     } catch (Exception e) {
                         logger.error("process record error.", e);
-                        doException(isCtrl, record.topic(), record.partition(), record.offset(), consumer);
+                        if (!isReload)
+                            doException(isCtrl, record.topic(), record.partition(), record.offset(), consumer);
                     }
                     if (isReload)
                         break;
@@ -143,6 +146,7 @@ public class DBusRouterMonitorSpout extends BaseRichSpout {
             return;
         }
 
+        // data_increment_heartbeat.mysql.mydb.cbm.t1#router_test_s_r5.6.0.0.1541041451552|1541041451550|ok.wh_placeholder
         String[] vals = StringUtils.split(key, ".");
         if (vals == null || vals.length != 10) {
             logger.error("receive heartbeat key is error. topic:{}, key:{}", topic, key);
@@ -171,8 +175,18 @@ public class DBusRouterMonitorSpout extends BaseRichSpout {
             return;
 
         String dsName = vals[2];
+        if (StringUtils.contains(vals[2], "!")) {
+            dsName = StringUtils.split(vals[2], "!")[0];
+        } else {
+            isTableOK = false;
+            logger.error("it should not be here. key:{}", key);
+        }
         String schemaName = vals[3];
         String tableName = vals[4];
+
+        if (!isTableOK)
+            return;
+
         // String dsPartition = vals[6];
         String ns = StringUtils.joinWith(".", dsName, schemaName, tableName);
         String path = StringUtils.joinWith("/", Constants.HEARTBEAT_PROJECT_MONITOR,
@@ -335,7 +349,7 @@ public class DBusRouterMonitorSpout extends BaseRichSpout {
         if (sinks != null) {
             Sink delSink = null;
             for (Sink sink : sinks) {
-                String wkNs = StringUtils.joinWith(",", sink.getDsName(), sink.getSchemaName(), sink.getTableName());
+                String wkNs = StringUtils.joinWith(".", sink.getDsName(), sink.getSchemaName(), sink.getTableName());
                 if (StringUtils.equals(wkNs, namespace)) {
                     delSink = sink;
                     break;
@@ -399,6 +413,7 @@ public class DBusRouterMonitorSpout extends BaseRichSpout {
                     props.setProperty("bootstrap.servers", sink.getUrl());
                     props.setProperty("group.id", StringUtils.joinWith("-", props.getProperty("group.id"), "monitor"));
                     props.setProperty("client.id", StringUtils.joinWith("-", props.getProperty("client.id"), "monitor"));
+                    logger.info("monitor spout create consumer 1.");
                     KafkaConsumer<String, byte[]> consumer = new KafkaConsumer<>(props);
                     consumerMap.put(sink.getUrl(), consumer);
                     Set<String> topics = new HashSet<>();
@@ -430,16 +445,16 @@ public class DBusRouterMonitorSpout extends BaseRichSpout {
             }
         }
 
-        if (!urlTopicsMap.containsKey(bootstrapServers)) {
+        if (!isCtrl && !consumerMap.containsKey(bootstrapServers)) {
             consumerConf.setProperty("group.id", StringUtils.joinWith("-", consumerConf.getProperty("group.id"), "monitor"));
             consumerConf.setProperty("client.id", StringUtils.joinWith("-", consumerConf.getProperty("client.id"), "monitor"));
+            logger.info("monitor spout create consumer 2.");
             KafkaConsumer<String, byte[]> consumer = new KafkaConsumer<>(consumerConf);
             consumerMap.put(bootstrapServers, consumer);
             List<TopicPartition> assignTopics = new ArrayList<>();
             assignTopics(consumer.partitionsFor(obtainCtrlTopic()), assignTopics);
             consumer.assign(assignTopics);
-            if (!isCtrl)
-                consumer.seekToEnd(monitorSpoutConfig.getTopicMap().get(obtainCtrlTopic()));
+            consumer.seekToEnd(monitorSpoutConfig.getTopicMap().get(obtainCtrlTopic()));
         }
 
         // 当发生控制时，重新验证所需要的kafka url和已生成的consumer是否一致
@@ -449,14 +464,15 @@ public class DBusRouterMonitorSpout extends BaseRichSpout {
                 continue;
             if (!urlTopicsMap.containsKey(url)) {
                 KafkaConsumer<String, byte[]> consumer = consumerMap.get(url);
-                consumerMap.remove(url);
                 consumer.close();
+                consumerMap.remove(url);
             }
         }
 
         if (!isCtrl)
             urls = new HashSet<>(consumerMap.keySet());
 
+        logger.info("urls: {}", JSON.toJSONString(urls));
         logger.info("consumer map keys: {}", JSONObject.toJSONString(consumerMap.keySet()));
     }
 

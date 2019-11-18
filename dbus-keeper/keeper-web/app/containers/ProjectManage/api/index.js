@@ -103,6 +103,11 @@ export const GET_TABLE_TOPIC_API = '/keeper/projectTable/topics'
 // params {projectId}
 export const GET_TABLE_PROJECT_TOPO_API = '/keeper/projectTable/project-topologies'
 
+// 获取项目下所有resource
+export const GET_PROJECT_ALL_RESOURCE = '/keeper/projectTable/getAllResourcesByQuery'
+// 获取所有resource
+export const GET_ALL_RESOURCE = '/keeper/projects/getAllResourcesByQuery'
+
 // projectTable 新增Table
 // params {}
 export const ADD_TABLE_API = '/keeper/projectTable/add'
@@ -131,10 +136,25 @@ export const STOP_TABLE_PARTITION_OFFSET_API = '/keeper/projectTable/stop'
 // Reload Table
 export const RELOAD_TABLE_API = '/keeper/projectTable/reload'
 
+// 批量拉全量
+export const PROJECT_TABLE_BATCH_FULLPULL_API = '/keeper/fullpull/batchGlobalfullPull'
+
 // 删除table
 export const PROJECT_TABLE_DELETE_API = '/keeper/projectTable/delete'
+
+// 批量停止
+export const PROJECT_TABLE_BATCH_STOP_API = '/keeper/projectTable/batchStop'
+
+// 批量启动
+export const PROJECT_TABLE_BATCH_START_API = '/keeper/projectTable/batchStart'
+
+// 获取拉全量配置
+export const PROJECT_TABLE_GET_INITIAL_LOAD_CONF_API = '/keeper/projectTable/getProjectTableById'
+// 保存拉全量配置
+export const PROJECT_TABLE_SAVE_INITIAL_LOAD_CONF_API = '/keeper/fullpull/updateCondition'
 // 拉全量
 export const PROJECT_TABLE_INITIAL_LOAD_API = '/keeper/projectTable/initialLoad'
+
 
 // projectTable startTable
 // projectTable stopTable
@@ -200,3 +220,5 @@ export const FULLPULL_HISTORY_LIST_API = '/keeper/fullpullHistory/search'
 export const FULLPULL_HISTORY_LIST_PROJECT_API = '/keeper/fullpullHistory/project-names'
 //  projectFullPull 全量拉取历史记录查询 dsName查询
 export const FULLPULL_HISTORY_LIST_DSNAME_API = '/keeper/fullpullHistory/dsNames'
+//  projectFullPull 修改
+export const FULLPULL_HISTORY_UPDATE_API = '/keeper/fullpullHistory/update'

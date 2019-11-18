@@ -39,7 +39,8 @@ export {
   killTopology,
   getSchemaListByDsId,
   getSchemaTableList,
-  cleanSchemaTable
+  cleanSchemaTable,
+  clearFullPullAlarm
 } from '@/app/components/ResourceManage/DataSourceManage/redux/action'
 
 
@@ -56,7 +57,8 @@ export {
 
 
 export {
-  setDataTableParams
+  setDataTableParams,
+  clearVersionDetail
 } from '@/app/components/ResourceManage/DataTableManage/redux/action'
 
 export {

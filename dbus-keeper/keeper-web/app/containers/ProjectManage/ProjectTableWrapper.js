@@ -10,6 +10,8 @@ import {
   AddProjectTable,
   ProjectTableStartModal,
   ProjectTableInitialLoadModal,
+  ProjectTableKafkaReaderModal,
+  ProjectTableBatchFullPullModal,
   Bread
 } from '@/app/components'
 // selectors
@@ -30,6 +32,7 @@ import {
   setTableSink,
   setTableResource,
   setTableTopology,
+  selectAllResource,
   setTableEncodes,
   getEncodeTypeList,
   getTableSinks,
@@ -45,18 +48,26 @@ import {
   START_TABLE_PARTITION_OFFSET_API,
   STOP_TABLE_PARTITION_OFFSET_API,
   PROJECT_TABLE_DELETE_API,
-  PROJECT_TABLE_INITIAL_LOAD_API
+  PROJECT_TABLE_INITIAL_LOAD_API,
+  PROJECT_TABLE_BATCH_STOP_API,
+  PROJECT_TABLE_BATCH_START_API,
+  PROJECT_TABLE_BATCH_FULLPULL_API
 } from './api'
 import Request from '@/app/utils/request'
+import {KafkaReaderModel} from "@/app/containers/toolSet/selectors";
+import {getTopicsByUserId, readKafkaData} from "@/app/containers/toolSet/redux";
 
 // 链接reducer和action
 @connect(
   createStructuredSelector({
     projectTableData: ProjectTableModel(),
     projectHomeData: ProjectHomeModel(),
+    KafkaReaderData: KafkaReaderModel(),
     locale: makeSelectLocale()
   }),
   dispatch => ({
+    getTopicsByUserId: param => dispatch(getTopicsByUserId.request(param)),
+    readKafkaData: param => dispatch(readKafkaData.request(param)),
     getTableList: param => dispatch(searchTableList.request(param)),
     getProjectList: param => dispatch(getProjectList.request(param)),
     getTopologyList: param => dispatch(getTopologyList.request(param)),
@@ -77,6 +88,7 @@ import Request from '@/app/utils/request'
     setTableSink: param => dispatch(setTableSink(param)),
     setTableResource: param => dispatch(setTableResource(param)),
     setTableTopology: param => dispatch(setTableTopology(param)),
+    selectAllResource: param => dispatch(selectAllResource(param)),
     setTableEncodes: param => dispatch(setTableEncodes(param))
   })
 )
@@ -96,19 +108,32 @@ export default class ProjectTableWrapper extends Component {
 
       initialLoadModalVisible: false,
       initialLoadModalKey: 'initialLoad',
-      initialLoadModalRecord: {}
+      initialLoadModalRecord: {},
+
+      kafkaReadModalVisible: false,
+      kafkaReadModalKey: 'kafkaRead',
+      kafkaReadModalRecord: {},
+
+      batchFullPullModalVisible: false,
+      batchFullPullModalKey: 'batchFullPull',
+
+      selectedRowKeys: [],
+      selectedRows: []
     }
     this.tableWidth = [
       '10%',
       '10%',
-      '10%',
-      '10%',
-      '16%',
-      '15%',
-      '15%',
-      '16%',
-      '10%',
       '11%',
+      '14%',
+      '10%',
+      '22%',
+      '22%',
+      '9%',
+      '10%',
+      '10%',
+      '7%',
+      '8%',
+      '9%',
       '200px'
     ]
     this.initParams = {
@@ -170,6 +195,81 @@ export default class ProjectTableWrapper extends Component {
     this.stateModalVisibal(true, 'create')
   }
 
+  handleBatchStop = () => {
+    const {selectedRows} = this.state
+    if(!selectedRows.length) {
+      message.error('没有选择表')
+      return
+    }
+    Request(`${PROJECT_TABLE_BATCH_STOP_API}`, {
+      data: selectedRows.map(row => row.tableId),
+      method: 'post'
+    })
+      .then(res => {
+        if (res && res.status === 0) {
+          message.success(res.message)
+          this.setState({
+            selectedRows: [],
+            selectedRowKeys: []
+          })
+          this.handleReloadSearch()
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => message.error(error))
+  }
+
+  handleBatchStart = () => {
+    const {selectedRows} = this.state
+    if(!selectedRows.length) {
+      message.error('没有选择表')
+      return
+    }
+    Request(`${PROJECT_TABLE_BATCH_START_API}`, {
+      data: selectedRows.map(row => row.tableId),
+      method: 'post'
+    })
+      .then(res => {
+        if (res && res.status === 0) {
+          message.success(res.message)
+          this.setState({
+            selectedRows: [],
+            selectedRowKeys: []
+          })
+          this.handleReloadSearch()
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => message.error(error))
+  }
+
+  handleBatchDelete = () => {
+    const {selectedRows} = this.state
+    if(!selectedRows.length) {
+      message.error('没有选择表')
+      return
+    }
+    Request(`${PROJECT_TABLE_DELETE_API}`, {
+      data: selectedRows.map(row => row.tableId),
+      method: 'post'
+    })
+      .then(res => {
+        if (res && res.status === 0) {
+          message.success(res.message)
+          this.setState({
+            selectedRows: [],
+            selectedRowKeys: []
+          })
+          this.handleReloadSearch()
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => message.error(error))
+  }
+
   stateModalVisibal = (modalVisibal, modalStatus = 'create') => {
     this.setState({
       modalVisibal,
@@ -211,6 +311,10 @@ export default class ProjectTableWrapper extends Component {
       true
     )
   };
+
+  handleSelectionChange = (selectedRowKeys, selectedRows) => {
+    this.setState({selectedRowKeys, selectedRows})
+  }
   /**
    * @description 重新刷新页面的 查询接口
   */
@@ -270,7 +374,11 @@ export default class ProjectTableWrapper extends Component {
       topic: p.topic,
       topoName: topoName,
       partition: p.partition,
-      offset: values[`offset-${p.partition}`]
+      offset: values[`offset-${p.partition}`],
+      projectName: startModalRecord.projectName,
+      dsName: startModalRecord.dsName,
+      schemaName: startModalRecord.schemaName,
+      tableName: startModalRecord.tableName,
     }))
     Request(START_TABLE_PARTITION_OFFSET_API, {
       data: data,
@@ -318,6 +426,7 @@ export default class ProjectTableWrapper extends Component {
 
   handleOpenInitialLoadModal = (record) => {
     this.setState({
+      initialLoadModalKey: this.handleRandom('initialLoad'),
       initialLoadModalVisible: true,
       initialLoadModalRecord: record
     })
@@ -330,7 +439,54 @@ export default class ProjectTableWrapper extends Component {
     })
   }
 
+  handleOpenBatchFullPullModal = () => {
+    const {selectedRows} = this.state
+    if(!selectedRows.length) {
+      message.error('没有选择表')
+      return
+    }
+    this.setState({
+      batchFullPullModalVisible: this.handleRandom('batchFullPull'),
+      batchFullPullModalKey: true
+    })
+  }
 
+  handleCloseBatchFullPullModal = () => {
+    this.setState({
+      batchFullPullModalVisible: false,
+      batchFullPullModalKey: this.handleRandom('batchFullPull')
+    })
+  }
+
+  handleBatchFullPull = (values) => {
+    const {selectedRows} = this.state
+    if(!selectedRows.length) {
+      message.error('没有选择表')
+      return
+    }
+    Request(`${PROJECT_TABLE_BATCH_FULLPULL_API}`, {
+      data: {
+        outputTopic: values.topic,
+        isProject: true,
+        ids: selectedRows.map(row => row.tableId)
+      },
+      method: 'post'
+    })
+      .then(res => {
+        if (res && res.status === 0) {
+          message.success('请查看全量历史,查询批量拉全量情况!')
+          this.handleCloseBatchFullPullModal()
+          this.setState({
+            selectedRows: [],
+            selectedRowKeys: []
+          })
+          this.handleReloadSearch()
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => message.error(error))
+  }
   handleRequest = (obj) => {
     const {projectTableData} = this.props
     const {tableParams} = projectTableData
@@ -381,16 +537,33 @@ export default class ProjectTableWrapper extends Component {
     })
   }
 
+  handleOpenReadKafkaModal = record => {
+    this.setState({
+      kafkaReadModalKey: this.handleRandom('kafkaRead'),
+      kafkaReadModalVisible: true,
+      kafkaReadModalRecord: record
+    })
+  }
+
+  handleCloseReadKafkaModal = () => {
+    this.setState({
+      kafkaReadModalVisible: false,
+    })
+  }
+
   render () {
-    console.info(this.props)
     const { modalVisibal, modalStatus, modalKey, tableId, modifyRecord} = this.state
     const { startModalVisible, startModalKey } = this.state
+    const { kafkaReadModalRecord, kafkaReadModalVisible, kafkaReadModalKey } = this.state
 
     const {initialLoadModalVisible, initialLoadModalKey,initialLoadModalRecord} = this.state
+    const {batchFullPullModalVisible, batchFullPullModalKey} = this.state
+    const {selectedRowKeys} = this.state
     const {
       locale,
       // isCreate 用来判断是否是用户角度进入此组件
       isCreate,
+      KafkaReaderData,
       projectTableData,
       projectHomeData,
       getTopologyList,
@@ -403,11 +576,19 @@ export default class ProjectTableWrapper extends Component {
       setTableSink,
       setTableResource,
       setTableTopology,
+      selectAllResource,
       setTableEncodes,
       getTableProjectAllTopo,
       getDataSourceList,
-      getProjectInfo
+      getProjectInfo,
+      getTopicsByUserId,
+      readKafkaData
     } = this.props
+    console.info('KafkaReaderData=',KafkaReaderData)
+    const {
+      topicsByUserIdList,
+      kafkaData
+    } = KafkaReaderData
     const {
       tableList,
       dataSourceList,
@@ -457,6 +638,10 @@ export default class ProjectTableWrapper extends Component {
           onGetTopologyList={getTopologyList}
           onSearch={this.handleSearch}
           onCreateTable={this.handleCreateTable}
+          onBatchDelete={this.handleBatchDelete}
+          onBatchStop={this.handleBatchStop}
+          onBatchStart={this.handleBatchStart}
+          onBatchFullPull={this.handleOpenBatchFullPullModal}
         />
         <ProjectTableGrid
           locale={locale}
@@ -466,6 +651,7 @@ export default class ProjectTableWrapper extends Component {
           onSearch={this.handleSearch}
           onPagination={this.handlePagination}
           onShowSizeChange={this.handleShowSizeChange}
+          onOpenReadKafkaModal={this.handleOpenReadKafkaModal}
           onStart={this.handleStart}
           onStop={this.handleStop}
           onDelete={this.handleDelete}
@@ -473,6 +659,8 @@ export default class ProjectTableWrapper extends Component {
           onModifyTable={this.handleModifyTable}
           onInitialLoad={this.handleOpenInitialLoadModal}
           onViewFullPullHistory={this.handleViewFullPullHistory}
+          onSelectionChange={this.handleSelectionChange}
+          selectedRowKeys={selectedRowKeys}
         />
         <AddProjectTable
           locale={locale}
@@ -494,6 +682,7 @@ export default class ProjectTableWrapper extends Component {
           onSetSink={setTableSink}
           onSetResource={setTableResource}
           onSetTopology={setTableTopology}
+          onSelectAllResource={selectAllResource}
           onSetEncodes={setTableEncodes}
           onGetTableProjectAllTopo={getTableProjectAllTopo}
           onReloadSearch={this.handleReloadSearch}
@@ -516,6 +705,23 @@ export default class ProjectTableWrapper extends Component {
           onClose={this.handleCloseInitialLoadModal}
           onRequest={this.handleRequest}
           initialLoadApi={PROJECT_TABLE_INITIAL_LOAD_API}
+        />
+        <ProjectTableKafkaReaderModal
+          key={kafkaReadModalKey}
+          visible={kafkaReadModalVisible}
+          record={kafkaReadModalRecord}
+          onClose={this.handleCloseReadKafkaModal}
+          getTopicsByUserId={getTopicsByUserId}
+          readKafkaData={readKafkaData}
+          topicsByUserIdList={topicsByUserIdList}
+          kafkaData={kafkaData}
+        />
+        <ProjectTableBatchFullPullModal
+          key={batchFullPullModalKey}
+          visible={batchFullPullModalVisible}
+          onClose={this.handleCloseBatchFullPullModal}
+          onRequest={this.handleRequest}
+          onBatchFullPull={this.handleBatchFullPull}
         />
       </div>
     )

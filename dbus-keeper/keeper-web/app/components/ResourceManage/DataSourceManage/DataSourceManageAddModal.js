@@ -144,7 +144,10 @@ export default class DataSourceManageAddModal extends Component {
     const columns = [
       {
         title: (
-          'tableName'
+          <FormattedMessage
+            id="app.components.resourceManage.dataTableName"
+            defaultMessage="表名"
+          />
         ),
         width: this.tableWidth[0],
         dataIndex: 'tableName',
@@ -153,7 +156,10 @@ export default class DataSourceManageAddModal extends Component {
       },
       {
         title: (
-          'physicalTableRegex'
+          <FormattedMessage
+            id="app.components.resourceManage.dataTableNameRegex"
+            defaultMessage="表名正则"
+          />
         ),
         width: this.tableWidth[1],
         dataIndex: 'physicalTableRegex',
@@ -162,7 +168,10 @@ export default class DataSourceManageAddModal extends Component {
       },
       {
         title: (
-          'outputTopic'
+          <FormattedMessage
+            id="app.components.projectManage.projectTable.outputTopic"
+            defaultMessage="输出Topic"
+          />
         ),
         width: this.tableWidth[2],
         dataIndex: 'outputTopic',
@@ -171,7 +180,10 @@ export default class DataSourceManageAddModal extends Component {
       },
       {
         title: (
-          'incompatibleColumn'
+          <FormattedMessage
+            id="app.components.resourceManage.dataSource.incompatibleColumn"
+            defaultMessage="不兼容的列"
+          />
         ),
         width: this.tableWidth[2],
         dataIndex: 'incompatibleColumn',
@@ -180,7 +192,10 @@ export default class DataSourceManageAddModal extends Component {
       },
       {
         title: (
-          'ignoreColumn'
+          <FormattedMessage
+            id="app.components.resourceManage.dataSource.ignoreColumn"
+            defaultMessage="忽略的列"
+          />
         ),
         width: this.tableWidth[2],
         dataIndex: 'columnName',
@@ -201,15 +216,6 @@ export default class DataSourceManageAddModal extends Component {
         const filteredSelectedRows = selectedRows.filter(record => !record.disable)
         const {tableInfos} = this.state
         tableInfos[currentSchema] = filteredSelectedRows
-
-        // 如果选中的所有内容都是已经存在的，则删除schemaInfos和tableInfos相关信息
-        if (filteredSelectedRows.length === 0) {
-          delete schemaInfos[currentSchema]
-          delete tableInfos[currentSchema]
-        }
-        if (selectedRows.length === 0) {
-          delete recordRowKeys[currentSchema]
-        }
 
         this.setState({recordRowKeys, schemaInfos, tableInfos})
       },
@@ -242,14 +248,17 @@ export default class DataSourceManageAddModal extends Component {
         width={1000}
         title={
           <div>
-          <span>添加Schema</span>
+          <span><FormattedMessage id="app.common.addSchema" defaultMessage="添加Schema" /></span>
           </div>
         }
       >
         <Form>
           <Row>
             <Col span={8}>
-              <FormItem  label={'dataSource'} {...formItemLayout}>
+              <FormItem  label={<FormattedMessage
+                id="app.components.resourceManage.dataSourceName"
+                defaultMessage="数据源名称"
+              />} {...formItemLayout}>
                 <Input
                   readOnly
                   size="small"
@@ -259,7 +268,10 @@ export default class DataSourceManageAddModal extends Component {
               </FormItem>
             </Col>
             <Col span={8}>
-              <FormItem label={'Schema'} {...formItemLayout}>
+              <FormItem label={<FormattedMessage
+                id="app.components.resourceManage.dataSchemaName"
+                defaultMessage="Schema名称"
+              />} {...formItemLayout}>
                 <div style={{marginTop: 5}}>
                   <Select
                     showSearch
@@ -281,7 +293,10 @@ export default class DataSourceManageAddModal extends Component {
               </FormItem>
             </Col>
             <Col span={8}>
-              <FormItem label={'Description'} {...formItemLayout}>
+              <FormItem label={<FormattedMessage
+                id="app.common.description"
+                defaultMessage="描述"
+              />} {...formItemLayout}>
                 <Input
                   readOnly
                   size="small"
@@ -293,7 +308,10 @@ export default class DataSourceManageAddModal extends Component {
           </Row>
           <Row style={{marginTop: -5}}>
             <Col span={8}>
-              <FormItem label={'status'} {...formItemLayout}>
+              <FormItem label={<FormattedMessage
+                id="app.common.status"
+                defaultMessage="状态"
+              />} {...formItemLayout}>
                 <Input
                   readOnly
                   size="small"
@@ -303,7 +321,10 @@ export default class DataSourceManageAddModal extends Component {
               </FormItem>
             </Col>
             <Col span={8}>
-              <FormItem label={'src_topic'} {...formItemLayout}>
+              <FormItem label={<FormattedMessage
+                id="app.components.resourceManage.sourceTopic"
+                defaultMessage="源Topic"
+              />} {...formItemLayout}>
                 <Input
                   readOnly
                   size="small"
@@ -313,7 +334,10 @@ export default class DataSourceManageAddModal extends Component {
               </FormItem>
             </Col>
             <Col span={8}>
-              <FormItem label={'target_topic'} {...formItemLayout}>
+              <FormItem label={<FormattedMessage
+                id="app.components.resourceManage.targetTopic"
+                defaultMessage="目标Topic"
+              />} {...formItemLayout}>
                 <Input
                   readOnly
                   size="small"

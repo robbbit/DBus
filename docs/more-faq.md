@@ -85,3 +85,31 @@ dbus web会通过`data source` 中的 `slave_url` 和 `dbus` 用户与源库建�
 grant select on db1.table to dbus;
 ```
 
+## Q7:初始化心跳后没有找到心跳进程?
+
+如果发现初始化心跳后没有进程，请检查心跳所在服务器是否安装了unzip命令。初始化需要unzip命令支持。
+
+## Q8:启动Topology时报和storm.py相关异常?
+
+启动topology时报如下异常：
+
+```sql
+2018-02-28 18:27:19:999 - error: /app/dbus-allinone/distribution-0.4.0-bin/manager/lib/service/start-topology-service.js[37] - startTopo err: Error: Command failed: ssh -p 22 root@localhost 'cd /app/dbus-allinone/apache-storm-1.0.1//dbus_jars; ./dbus_startTopology.sh /app/dbus-allinone/apache-storm-1.0.1/ log-processor localhost:2181 heartbeat_log 0.4.x/log_processor/20180123_201400/dbus-log-processor-0.4.0-jar-with-dependencies.jar'Traceback (most recent call last):  File "/app/dbus-allinone/apache-storm-1.0.1//bin/storm.py", line 766, in <module>    main()  File "/app/dbus-allinone/apache-storm-1.0.1//bin/storm.py", line 763, in main    (COMMANDS.get(COMMAND, unknown_command))(*ARGS)  File "/app/dbus-allinone/apache-storm-1.0.1//bin/storm.py", line 234, in jar    transform_class = confvalue("client.jartransformer.class", [CLUSTER_CONF_DIR])  File "/app/dbus-allinone/apache-storm-1.0.1//bin/storm.py", line 144, in confvalue    p = sub.Popen(command, stdout=sub.PIPE)  File "/usr/lib64/python2.6/subprocess.py", line 642, in __init__    errread, errwrite)  File "/usr/lib64/python2.6/subprocess.py", line 1238, in _execute_child    raise child_exceptionOSError: [Errno 2] No such file or directory
+```
+
+原因：ssh -p 22 root@localhost没有把JAVA_HOME环境变量带过来。
+
+解决办法：
+
+```sql
+在/apache-storm-1.0.1/bin/storm脚本最上面增加java环境变量export JAVA_HOME=/opt/programs/jdk1.8.0_152export JRE_HOME=/opt/programs/jdk1.8.0_152/jreexport CLASSPATH=.:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar:$JRE_HOME/libexport PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin
+```
+## Q9:关系型数据库，拉全量卡死，Topo重启
+
+关系型数据库数据类型多种多样。当类型为char/varchar的列被作为分片列，里面存储的是普通字符串，或md5/uuid编码后的字符串，拉全量会遇到困难，因为分片的上下界不是列式数字那样的简单的比较了。对于这样的列，如不做特殊配置，dbus按片拉取的时候可能会出现长时间卡死，导致全量拉取topology重启。具体原因可参考：https://mp.weixin.qq.com/s?__biz=MzU4MTUwMTI4Mw==&mid=2247483749&idx=1&sn=e03d8c9a1e7db56c2615a8cebc289a73&chksm=fd47e969ca30607f5d42d0e5f5b227481526a56e0814ef6242d0046786bbac58241b01aa2d07&scene=0#rd
+
+所以，当分片列为md5、uuid或普通字符串时，建议进行拆片风格的特殊配置，以保证dbus顺利拉取全量数据。
+
+具体配置步骤如下：
+
+![encode-project-user](img/manual/md5conf_1.png)![encode-project-user](img/manual/md5conf_2.png)

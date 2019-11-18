@@ -66,7 +66,7 @@ export default class DataSchemaManageGrid extends Component {
    * @description option render
    */
   renderOperating = (text, record, index) => {
-    const {onModify, onAdd} = this.props
+    const {onRerun, onModify, onAdd} = this.props
     return (
       <div>
         <OperatingButton icon="plus" onClick={() => onAdd(record)}>
@@ -78,7 +78,13 @@ export default class DataSchemaManageGrid extends Component {
         <OperatingButton icon="edit" onClick={() => onModify(record)}>
           <FormattedMessage id="app.common.modify" defaultMessage="修改" />
         </OperatingButton>
-        <Popconfirm title="确定删除？" onConfirm={() => this.handleDelete(record)} okText="Yes" cancelText="No">
+        <OperatingButton disabled={record.ds_type === 'db2'} icon="reload" onClick={() => onRerun(record)}>
+          <FormattedMessage
+            id="app.components.projectManage.projectTopology.table.rerun"
+            defaultMessage="拖回重跑"
+          />
+        </OperatingButton>
+        <Popconfirm title={<div><FormattedMessage id="app.common.delete" defaultMessage="删除" />？</div>} onConfirm={() => this.handleDelete(record)} okText="Yes" cancelText="No">
           <OperatingButton icon="delete">
             <FormattedMessage id="app.common.delete" defaultMessage="删除" />
           </OperatingButton>

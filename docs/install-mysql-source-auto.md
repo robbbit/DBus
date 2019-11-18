@@ -22,6 +22,7 @@ description: Dbus 安装Mysql源 DBUS_VERSION_SHORT
 
 配置中用到的基础环境的情况请参考[基础组件安装](install-base-components.html) 
 
+如果只是加表，请参考[加表流程](#add-table)
 
 **相关依赖部件说明：**
 
@@ -40,7 +41,7 @@ description: Dbus 安装Mysql源 DBUS_VERSION_SHORT
 2. **canal部署**
 3. **加线和查看结果**
 
-   ​
+   
 
 ## 1 数据库源端配置
 
@@ -146,6 +147,10 @@ FLUSH PRIVILEGES;
 
 ## 2 canal配置
 
+**这里提供了两种canal部署方式,推荐第二种**
+
+### 2.1.手动脚本部署
+
 **1) 下载canal自动部署包：**
 
 
@@ -159,7 +164,7 @@ FLUSH PRIVILEGES;
 - canal目录是自带的canal，该文件夹不能重命名，否则脚本会运行失败。
 - conf 目录下的canal-auto.properties是需要用户配置的
 - lib 目录不用关心
-- start.sh 自动化脚本
+- deploy.sh 自动化脚本
 
 
 **2) 脚本使用：canal自动部署和检查：**
@@ -184,7 +189,7 @@ canal.pwd=Canal&*(789
 
 
 
-替换完毕后，执行sh start.sh。 它会自动检查你填写的canal-auto.properties文件中内容。包括canal账户可用性，zk的连通性等。如果检查通过，会自动启动canal。
+替换完毕后，执行sh deploy.sh。 它会自动检查你填写的canal-auto.properties文件中内容。包括canal账户可用性，zk的连通性等。如果检查通过，会自动启动canal。
 如果启动成功，会打印出“canal 进程启动成功 ”字样，如下图所示。**但是canal进程在配置出错的情况下也能启动起来，所以最后需要检查下日志文件中是否有异常 **（脚本会在当前文件下创建日志文件的链接，可以直接查看）。同时，这些报告信息会在“canal_deploy _report”打头的日志文件中保留一份，方便查看。
 ![canal-auto-deploy-success](img/install-mysql/canal-auto-deploy-success.png)
 
@@ -194,7 +199,7 @@ canal.pwd=Canal&*(789
 
   **b.自动check：**
 
-  直接执行脚本执行sh start.sh，会执行配置的检测、自动替换和启动着几个动作。该脚本同时还提供单独的检测功能。执行sh start.sh check.即加上check参数，输出结果与自动部署类似。提醒：此处检查的是canal进行，还需要查看当前文件夹下日志文件中有无异常。同时，报告信息会在“canal_check _report”打头的日志文件中保留一份，方便查看。
+  直接执行脚本执行sh deploy.sh，会执行配置的检测、自动替换和启动着几个动作。该脚本同时还提供单独的检测功能。执行sh deploy.sh check.即加上check参数，输出结果与自动部署类似。提醒：此处检查的是canal进行，还需要查看当前文件夹下日志文件中有无异常。同时，报告信息会在“canal_check _report”打头的日志文件中保留一份，方便查看。
 
   ```properties
   
@@ -260,6 +265,25 @@ Dbus系统丢弃掉对大数据类型MEDIUMBLOB、LONGBLOB、LONGTEXT、MEDIUMTE
 
 可用https://github.com/BriData/DBus/blob/master/third-party-packages/canal/canal.parse-1.0.22.jar替换上述原始jar包。
 
+
+**如何部署多个canal实例？**
+
+脚本提供多次部署的能力。重复执行：修改conf/canal-auto.properties文件-->sh deplogy.sh，可以部署多个canal实例。每次执行会根据canal-auto.properties中配置的“dsname”作为后缀，生成相应的文件，如：配置“dsname=testdb”，执行脚本后，在当前目录下生成canal-testdb目录，即为一个canal部署实例；再次修改配置文件，设置“dsname=testdb2”，运行后会生成另外一个实例目录：canal-testdb2。
+
+### 2.2.web自动部署canal
+
+**强烈推荐这一种**!!!
+
+- 将dbus-canal-auto-0.5.0.tar.gz拷贝至服务器并解压即可
+
+- 如果是老用户请在zookeeper创建一个空节点,新用户不需要添加,初始化的时候会自动添加
+
+  ```
+  /DBusCommons/auto-deploy-canal.conf
+  ```
+
+其实到了这里就可以了,剩下的是3DBus 一键加线配置时才需要做的事情
+
 ## 3 Dbus一键加线
 
 Dbus对每个DataSource数据源配置一条数据线，当要添加新的datasource时，需要新添加一条数据线。下面对通过dbus keeper页面添加新数据线的步骤进行介绍
@@ -273,11 +297,17 @@ Dbus对每个DataSource数据源配置一条数据线，当要添加新的dataso
 
 **（2） 填写数据源基本信息 （master和slave jdbc连接串信息）**
 
-其中mysql-master是mysql数据源主库，Dbus中用于接受心跳检测数据，以便监测数据表数据是否正常流转。mysql-slave是mysql数据源备库，用于全量拉取数据，以便降低对主库正常业务数据查询影响。 
+其中mysql-master是mysql数据源主库，Dbus中用于接受心跳检测数据，以便监测数据表数据是否正常流转。mysql-slave是mysql数据源备库，用于全量拉取数据，以便降低对主库正常业务数据查询影响。
+
+**重要:** 
+
+jdbc链接示例 jdbc:MySQL://localhost:3306/**dbus**?**useUnicode=true&characterEncoding=utf8&autoReconnect=true&failOverReadOnly=false&noAccessToProcedureBodies=true&zeroDateTimeBehavior=convertToNull&tinyInt1isBit=false**
+
+数据库必须填写dbus，后缀建议和我们的示例保持一致，尤其是最后两个参数。
 
 ![数据基本信息填写标注](img/install-mysql/mysql-add-ds.png)
 
-**（3） 下拉选择要添加的schema，勾选要添加的表。Keeper支持一次添加多个schema下的多个table；**
+**（3） <span id="3.1.3"></span>下拉选择要添加的schema，勾选要添加的表。Keeper支持一次添加多个schema下的多个table；**
 
 ![选择schema标注](img/install-mysql/mysql-add-schema-table.png)
 
@@ -314,7 +344,7 @@ Dbus对每个DataSource数据源配置一条数据线，当要添加新的dataso
 ​如果正确，会出现如下图所示内容。中间环节出错，会有相应提示。
 ​	![检查加线结果](img/install-mysql/mysql-add-check-line.png)
 
-
+<span id="3.3"></span>
 ### 3.3 验证增量数据
 
 **a) 插入数据**
@@ -330,9 +360,40 @@ Dbus对每个DataSource数据源配置一条数据线，当要添加新的dataso
 ![install-mysql-9-grafana-actor](img/install-mysql/install-mysql-9-grafana-actor.PNG)
 
 
-
 ### 3.4 验证全量拉取
 
 验证全量拉取是否成功，可在Table管理右侧操作栏，点击"查看拉全量状态"。![install-mysql-10-fullpuller_status](img/install-mysql/full-pull-history-global.png)
 全量拉取的信息存储在ZK上，Dbus keeper会读取的zk下相应节点的信息，来查看全量拉取状态。看结点信息中Status字段，其中splitting表示正在分片，pulling表示正在拉取，ending表示拉取成功。
 ![install-mysql-11-fullpuller_status](img/install-mysql/fullpull-history-check.png)
+
+
+## 4 加表流程
+<span id="add-table"></span>
+本部分流程是建立在数据线部署完毕的基础上的，即在部署完数据线后，后续添加需要抽取的表。
+
+### 4.1 加表入口
+单独加表有两个入口：一，在数据源管理--操作（添加schema），可以选择schema，然后选择要添加的table。此步骤与3.1中[第三步](#3.1.3)操作一致（实际上是在加线的步骤中集成了加表的操作），可以选择多个schema下的多个table添加；二，数据源管理--Schema管理--操作（添加table）。如果要添加的表都在一个schema下，或者您已确定需要添加哪个schema下的表，可以选择这个方式加表。
+
+**4.1.1 数据源管理处入口**
+
+![install-mysql-add-table-entrance1](img/install-mysql/install-mysql-add-table-entrance1.png)
+
+点击添加按钮后，可以进一步选择shcema和table进行操作，可选择多个schema的多个table
+
+![install-mysql-add-table-entrance1-schema](img/install-mysql/install-mysql-add-table-entrance1-schema.png)
+
+**4.1.2 Schema管理处入口**
+
+![install-mysql-add-table-entrance2](img/install-mysql/install-mysql-add-table-entrance2.png)
+
+点击添加按钮后，直接选择table进行操作，因为schema已经固定。
+
+![install-mysql-add-table-entrance2-table](img/install-mysql/install-mysql-add-table-entrance2-table.png)
+
+### 4.2 验证增量数据
+加表完毕，可以在“数据源管理--表管理”中将表增量启动起来(需要保证版本不是“null”，即：需要保证xx-dispatcher-appender拓扑正常启动，如果没有启动，在“数据源管理--数据源管理--拓扑管理”中启动)。
+
+![install-mysql-add-table-start](img/install-mysql/install-mysql-add-table-start.png)
+
+表启动起来（状态变为“running”）后，可以进行增量数据的验证。参考步骤[3.3](#3.3)
+

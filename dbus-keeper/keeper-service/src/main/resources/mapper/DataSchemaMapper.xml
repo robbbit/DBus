@@ -66,7 +66,7 @@
   <delete id="deleteBySchemaId">
     delete ts,tt,tc,tv,tm from t_data_schema ts
     left join t_data_tables tt on ts.id = tt.schema_id
-    left join t_encode_columns tc on tt.id=tc.table_id
+    left join t_dba_encode_columns tc on tt.id=tc.table_id
     left join t_meta_version tv on tt.id = tv.table_id
     left join t_table_meta tm on tv.id = tm.ver_id
     where ts.id = #{id}
@@ -78,7 +78,7 @@
     set ts.status=#{status} , tt.status =#{status}  where ts.id = #{id}
   </update>
   <select id="selectById" resultMap="BaseResultMap">
-    select * from t_data_schema where id = #{id}
+    select d.ds_type,d.ds_name,s.* from t_data_schema s,t_dbus_datasource d where s.ds_id = d.id and s.id = #{id}
   </select>
   <select id="findByDsIdAndSchemaName" resultMap="BaseResultMap">
     select s.*, ds.ds_name ,ds.ds_type
@@ -88,4 +88,7 @@
       and s.schema_name = #{schemaName}
     order by s.create_time desc
   </select>
+  <update id="inactiveSchemaByDsId" parameterType="java.lang.Integer">
+    update t_data_schema s set s.status='inactive' where s.ds_id = #{dsId}
+  </update>
 </mapper>

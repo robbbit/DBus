@@ -16,7 +16,10 @@ import {
   DataTableManageSourceInsightModal,
   DataTableManageIndependentModal,
   DataSourceManageMountModal,
-  DataSourceManageCheckModal
+  DataSourceManageCheckModal,
+  DataTableManageRerunModal,
+  RuleImportModal,
+  DataTableBatchFullPullModal
 } from '@/app/components'
 import { makeSelectLocale } from '../LanguageProvider/selectors'
 import {DataTableModel, DataSourceModel} from './selectors'
@@ -25,6 +28,7 @@ import {ZKManageModel} from "@/app/containers/ConfigManage/selectors";
 import {
   searchDataSourceIdTypeName,
   setDataTableParams,
+  clearVersionDetail,
   searchDataTableList,
   getEncodeConfig,
   getTableColumn,
@@ -33,7 +37,9 @@ import {
   getVersionDetail,
   getSourceInsight
 } from './redux'
-
+import {
+  sendControlMessage,
+} from '@/app/containers/toolSet/redux'
 import {loadLevelOfPath, readZkData} from "@/app/components/ConfigManage/ZKManage/redux/action";
 
 import {
@@ -42,9 +48,15 @@ import {
   DATA_TABLE_START_API,
   DATA_TABLE_STOP_API,
   DATA_TABLE_SAVE_ENCODE_CONFIG_API,
-  DATA_TABLE_CHECK_DATA_LINE_API
+  DATA_TABLE_CHECK_DATA_LINE_API,
+  DATA_TABLE_BATCH_START_API,
+  DATA_TABLE_BATCH_STOP_API,
+  EXPORT_RULES_API
 } from './api'
-import {GET_MOUNT_PROJECT_API} from "@/app/containers/ProjectManage/api";
+import {
+  GET_MOUNT_PROJECT_API,
+  PROJECT_TABLE_BATCH_FULLPULL_API
+} from "@/app/containers/ProjectManage/api";
 
 
 // 链接reducer和action
@@ -57,7 +69,7 @@ import {GET_MOUNT_PROJECT_API} from "@/app/containers/ProjectManage/api";
   }),
   dispatch => ({
     searchDataSourceIdTypeName: param => dispatch(searchDataSourceIdTypeName.request(param)),
-
+    clearVersionDetail: param => dispatch(clearVersionDetail(param)),
     setDataTableParams: param => dispatch(setDataTableParams(param)),
     searchDataTableList: param => dispatch(searchDataTableList.request(param)),
     getEncodeConfig: param => dispatch(getEncodeConfig.request(param)),
@@ -69,6 +81,8 @@ import {GET_MOUNT_PROJECT_API} from "@/app/containers/ProjectManage/api";
 
     loadLevelOfPath: param => dispatch(loadLevelOfPath.request(param)),
     readZkData: param => dispatch(readZkData.request(param)),
+
+    sendControlMessage: param => dispatch(sendControlMessage.request(param)),
   })
 )
 export default class DataTableWrapper extends Component {
@@ -111,7 +125,18 @@ export default class DataTableWrapper extends Component {
       checkModalLoading: false,
 
       selectedRowKeys: [],
-      selectedRows: []
+      selectedRows: [],
+
+      rerunModalKey: 'rerunModalKey',
+      rerunModalRecord: {},
+      rerunModalVisible: false,
+
+      ruleImportModalKey: 'ruleImportModalKey',
+      ruleImportModalVisible: false,
+      ruleImportModalTableId: 1,
+
+      batchFullPullModalVisible: false,
+      batchFullPullModalKey: 'batchFullPull'
     }
   }
   componentWillMount() {
@@ -119,6 +144,11 @@ export default class DataTableWrapper extends Component {
     const {searchDataSourceIdTypeName} = this.props
     searchDataSourceIdTypeName()
     this.handleSearch(this.initParams)
+  }
+
+  handleSendControlMessage = data => {
+    const {sendControlMessage} = this.props
+    sendControlMessage(data)
   }
 
   handleRandom = key =>
@@ -234,6 +264,8 @@ export default class DataTableWrapper extends Component {
   }
 
   handleCloseVersionModal = () => {
+    const {clearVersionDetail} = this.props
+    clearVersionDetail()
     this.setState({
       versionModalKey: this.handleRandom('version'),
       versionModalVisible: false
@@ -363,6 +395,20 @@ export default class DataTableWrapper extends Component {
     })
   }
 
+  handleOpenRerunModal = record => {
+    this.setState({
+      rerunModalKey: this.handleRandom('rerunModalKey'),
+      rerunModalRecord: record,
+      rerunModalVisible: true
+    })
+  }
+
+  handleCloseRerunModal = () => {
+    this.setState({
+      rerunModalVisible: false
+    })
+  }
+
   handleRefresh = () => {
     const {dataTableData} = this.props
     const {dataTableParams} = dataTableData
@@ -399,6 +445,125 @@ export default class DataTableWrapper extends Component {
       })
   }
 
+  handleAllStart = () => {
+    const {selectedRowKeys} = this.state
+    if(!selectedRowKeys.length) {
+      message.error('没有选择表')
+      return
+    }
+    Request(`${DATA_TABLE_BATCH_START_API}`, {
+      data: selectedRowKeys,
+      method: 'post'
+    })
+      .then(res => {
+        if (res && res.status === 0) {
+          message.success(res.message)
+          this.setState({
+            selectedRows: [],
+            selectedRowKeys: []
+          })
+          this.handleRefresh()
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => message.error(error))
+  }
+
+  handleAllStop = () => {
+    // debugger
+    const {selectedRowKeys} = this.state
+    if(!selectedRowKeys.length) {
+      message.error('没有选择表')
+      return
+    }
+    Request(`${DATA_TABLE_BATCH_STOP_API}`, {
+      data: selectedRowKeys,
+      method: 'post'
+    })
+      .then(res => {
+        if (res && res.status === 0) {
+          message.success(res.message)
+          this.setState({
+            selectedRows: [],
+            selectedRowKeys: []
+          })
+          this.handleRefresh()
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => message.error(error))
+  }
+  handleCloseRuleImportModal = () => {
+    this.setState({
+      ruleImportModalVisible: false
+    })
+  }
+
+  handleOpenRuleImportModal = (record) => {
+    this.setState({
+      ruleImportModalKey: this.handleRandom('preProcessModalKey'),
+      ruleImportModalVisible: true,
+      ruleImportModalTableId: record.id
+    })
+  }
+
+  handleDownload = (record) => {
+    const TOKEN = window.localStorage.getItem('TOKEN')
+    window.open(`${EXPORT_RULES_API}/${record.id}?token=${TOKEN}`)
+  }
+
+  handleOpenBatchFullPullModal = () => {
+    const {selectedRows} = this.state
+    if(!selectedRows.length) {
+      message.error('没有选择表')
+      return
+    }
+    this.setState({
+      batchFullPullModalVisible: this.handleRandom('batchFullPull'),
+      batchFullPullModalKey: true
+    })
+  }
+
+  handleCloseBatchFullPullModal = () => {
+    this.setState({
+      batchFullPullModalVisible: false,
+      batchFullPullModalKey: this.handleRandom('batchFullPull')
+    })
+  }
+
+  handleBatchFullPull = (values) => {
+    const {selectedRows} = this.state
+    if(!selectedRows.length) {
+      message.error('没有选择表')
+      return
+    }
+    Request(`${PROJECT_TABLE_BATCH_FULLPULL_API}`, {
+      data: {
+        outputTopic: values.topic,
+        isProject: false,
+        ids: selectedRows.map(row => row.id)
+      },
+      method: 'post'
+    })
+      .then(res => {
+        if (res && res.status === 0) {
+          message.success('请查看全量历史,查询批量拉全量情况!')
+          this.handleCloseBatchFullPullModal()
+          this.setState({
+            selectedRows: [],
+            selectedRowKeys: []
+          })
+          this.handleRefresh()
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => message.error(error))
+  }
+
+
   render () {
     console.info(this.props)
     const {dataSourceData} = this.props
@@ -430,10 +595,12 @@ export default class DataTableWrapper extends Component {
     const {independentModalVisible, independentModalRecord, independentModalKey, independentModalLoading} = this.state
 
     const {mountModalContent, mountModalVisible, mountModalKey} = this.state
-    const {selectedRowKeys, selectedRows} = this.state
+    const {selectedRowKeys} = this.state
 
     const {checkModalKey, checkModalLoading, checkModalResult, checkModalVisible} = this.state
-
+    const {rerunModalVisible, rerunModalRecord, rerunModalKey} = this.state
+    const {ruleImportModalKey, ruleImportModalVisible, ruleImportModalTableId} = this.state
+    const {batchFullPullModalVisible, batchFullPullModalKey} = this.state
     const breadSource = [
       {
         path: '/resource-manage',
@@ -461,8 +628,11 @@ export default class DataTableWrapper extends Component {
           dataSourceIdTypeName={dataSourceIdTypeName}
           params={dataTableParams}
           onSearch={this.handleSearch}
-          startApi={DATA_TABLE_START_API}
-          selectedRows={selectedRows}
+          selectedRowKeys={selectedRowKeys}
+          onAllStart={this.handleAllStart}
+          onAllStop={this.handleAllStop}
+          onSendControlMessage={this.handleSendControlMessage}
+          onBatchFullPull={this.handleOpenBatchFullPullModal}
         />
         <DataTableManageGrid
           selectedRowKeys={selectedRowKeys}
@@ -484,6 +654,10 @@ export default class DataTableWrapper extends Component {
           deleteApi={DATA_TABLE_DELETE_API}
           startApi={DATA_TABLE_START_API}
           stopApi={DATA_TABLE_STOP_API}
+          onSendControlMessage={this.handleSendControlMessage}
+          onRerun={this.handleOpenRerunModal}
+          onOpenRuleImportModal={this.handleOpenRuleImportModal}
+          onHandleDownload={this.handleDownload}
         />
         <DataTableManageReadZkModal
           key={zkModalKey}
@@ -552,6 +726,25 @@ export default class DataTableWrapper extends Component {
           result={checkModalResult}
           visible={checkModalVisible}
           onClose={this.handleCloseCheckDataLineModal}
+        />
+        <DataTableManageRerunModal
+          key={rerunModalKey}
+          visible={rerunModalVisible}
+          record={rerunModalRecord}
+          onClose={this.handleCloseRerunModal}
+        />
+        <RuleImportModal
+          key={ruleImportModalKey}
+          visible={ruleImportModalVisible}
+          tableId={ruleImportModalTableId}
+          onClose={this.handleCloseRuleImportModal}
+        />
+        <DataTableBatchFullPullModal
+          key={batchFullPullModalKey}
+          visible={batchFullPullModalVisible}
+          onClose={this.handleCloseBatchFullPullModal}
+          onRequest={this.handleRequest}
+          onBatchFullPull={this.handleBatchFullPull}
         />
       </div>
     )

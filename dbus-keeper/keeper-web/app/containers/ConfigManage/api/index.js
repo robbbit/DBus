@@ -23,4 +23,12 @@ export const LOAD_ZK_TREE_BY_DSNAME_API = '/keeper/zookeeper/loadZkTreeByDsName'
 
 export const UPDATE_MGR_DB_API = '/keeper/configCenter/updateMgrDB'
 
+export const RESET_MGR_DB_API = '/keeper/configCenter/ResetMgrDB'
+
 export const UPDATE_GLOBAL_CONF_API = '/keeper/configCenter/updateGlobalConf'
+
+export const INIT_GLOBAL_CONF_API = '/keeper/configCenter/updateBasicConfByOption'
+
+export const DBA_ENCODE_SEARCH_API = '/keeper/dbaEncodeData/encodeInfo'
+
+export const DBA_ENCODE_UPDATE_API = '/keeper/dbaEncodeData/toggleOverride'

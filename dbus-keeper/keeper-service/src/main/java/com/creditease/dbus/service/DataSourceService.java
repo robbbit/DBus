@@ -36,7 +36,9 @@ import com.creditease.dbus.commons.IZkService;
 import com.creditease.dbus.constant.KeeperConstants;
 import com.creditease.dbus.constant.MessageCode;
 import com.creditease.dbus.constant.TopologyType;
+import com.creditease.dbus.domain.mapper.DataSchemaMapper;
 import com.creditease.dbus.domain.mapper.DataSourceMapper;
+import com.creditease.dbus.domain.mapper.DataTableMapper;
 import com.creditease.dbus.domain.model.DataSource;
 import com.creditease.dbus.enums.DbusDatasourceType;
 import com.creditease.dbus.service.source.MongoSourceFetcher;
@@ -46,6 +48,7 @@ import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 
 import org.apache.commons.collections.map.HashedMap;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -63,6 +66,12 @@ public class DataSourceService {
 
     @Autowired
     private DataSourceMapper mapper;
+
+    @Autowired
+    private DataSchemaMapper schemaMapper;
+
+    @Autowired
+    private DataTableMapper tableMapper;
 
     @Autowired
     private IZkService zkService;
@@ -119,6 +128,10 @@ public class DataSourceService {
      */
     public int update(DataSource updateOne) {
         updateOne.setUpdateTime(new Date());
+        if(updateOne.getStatus().equals("inactive")){
+            schemaMapper.inactiveSchemaByDsId(updateOne.getId());
+            tableMapper.inactiveTableByDsId(updateOne.getId());
+        }
         return mapper.updateByPrimaryKey(updateOne);
     }
 
@@ -155,7 +168,7 @@ public class DataSourceService {
      */
     public List<DataSource> getDataSourceByName(String dsName) {
         HashMap<String, Object> param = new HashMap<>();
-        param.put("dsName", dsName);
+        param.put("dsName", StringUtils.trim(dsName));
         return mapper.getDataSourceByName(param);
     }
 
@@ -204,7 +217,8 @@ public class DataSourceService {
                 return VALIDATE_OK;//1;
             }
             else if(dsType.equals(DbusDatasourceType.MYSQL)
-                    || dsType.equals(DbusDatasourceType.ORACLE)){
+                    || dsType.equals(DbusDatasourceType.ORACLE)
+                    ){
                 SourceFetcher fetcher = SourceFetcher.getFetcher(map);
                 int temp = fetcher.fetchSource(map);
                 return temp;
@@ -329,11 +343,11 @@ public class DataSourceService {
             topologyTypes.add(TopologyType.SPLITTER_PULLER);
             topologyTypes.add(TopologyType.MYSQL_EXTRACTOR);
 
-        }else if(dbusDatasourceType == DbusDatasourceType.ORACLE){
+        } else if (dbusDatasourceType == DbusDatasourceType.ORACLE || dbusDatasourceType == DbusDatasourceType.MONGO) {
             topologyTypes.add(TopologyType.DISPATCHER_APPENDER);
             topologyTypes.add(TopologyType.SPLITTER_PULLER);
-
-        }else if(dbusDatasourceType ==DbusDatasourceType.LOG_FILEBEAT ||
+        }
+        else if(dbusDatasourceType ==DbusDatasourceType.LOG_FILEBEAT ||
                 dbusDatasourceType == DbusDatasourceType.LOG_FLUME ||
                 dbusDatasourceType == DbusDatasourceType.LOG_LOGSTASH ||
                 dbusDatasourceType == DbusDatasourceType.LOG_LOGSTASH_JSON ||
@@ -344,4 +358,17 @@ public class DataSourceService {
         }
         return topologyTypes;
     }
+
+    public DataSource getByName(String dsName){
+        return mapper.getByName(StringUtils.trim(dsName));
+    }
+
+    public List<DataSource> getDataSourceByDsType(String dsType) {
+        return mapper.getDataSourceByDsType(dsType);
+    }
+
+    public List<DataSource> getDataSourceByDsTypes(List<String> dsTypes) {
+        return mapper.getDataSourceByDsTypes(dsTypes);
+    }
+
 }

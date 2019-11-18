@@ -104,9 +104,34 @@ public class ConfigCenterController extends BaseController {
     public ResultEntity updateBasicConf(@RequestBody LinkedHashMap<String, String> map) {
         try {
             int i = configCenterService.updateBasicConf(map);
+            if (i != 0) {
+                configCenterService.rollBackBasicConf();
+            }
             return resultEntityBuilder().status(i).build();
         } catch (Exception e) {
+            try {
+                configCenterService.rollBackBasicConf();
+            } catch (Exception e1) {
+                logger.error("Exception encountered while rollBackBasicConf ", e1);
+            }
             logger.error("Exception encountered while updateBasicConf ", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+    /**
+     * 重置mgr数据库表结构
+     *
+     * @param map
+     * @return
+     */
+    @PostMapping(path = "/ResetMgrDB", consumes = "application/json")
+    public ResultEntity ResetMgrDB(@RequestBody LinkedHashMap<String, String> map) {
+        try {
+            int i = configCenterService.ResetMgrDB(map);
+            return resultEntityBuilder().status(i).build();
+        } catch (Exception e) {
+            logger.error("Exception encountered while ResetMgrDB ", e);
             return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
         }
     }

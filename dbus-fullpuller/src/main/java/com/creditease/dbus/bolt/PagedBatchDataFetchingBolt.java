@@ -51,6 +51,7 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -141,7 +142,8 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
             //出错提前退出逻辑，如果取不到progress信息或者已经出现错误，跳过后来的tuple数据
             String progressInfoNodePath = FullPullHelper.getMonitorNodePath(dataSourceInfo);
             ProgressInfo progressObj = FullPullHelper.getMonitorInfoFromZk(zkService, progressInfoNodePath);
-            if (progressObj.getErrorMsg() != null) {
+            String status = FullPullHelper.getTaskStateByHistoryTable(dsObject);
+            if (progressObj.getErrorMsg() != null || (StringUtils.isNotBlank(status) && status.equalsIgnoreCase("abort"))) {
                 splitIndex = dataSplitShard.getString(DataPullConstants.DATA_CHUNK_SPLIT_INDEX);
                 LOG.error("Get process failed，skipped index:" + splitIndex);
                 collector.fail(input);
@@ -186,6 +188,13 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
             long startTime = System.currentTimeMillis();
 
             dbRecordReader = DBHelper.getRecordReader(dbManager, dbConf, inputSplit, logicalTableName);
+            //oracle表的meta信息单独获取
+            //从dbus manager库中获取meta信息
+            MetaWrapper metaInDbus = DBHelper.getMetaInDbus(dataSourceInfo);
+            //HashMap<String, HashMap<String, Object>> metaData = null;
+            //if (datasourceType.toUpperCase().equals(DbusDatasourceType.ORACLE.name())) {
+            //    metaData = dbRecordReader.queryMetaData();
+            //}
             rs = dbRecordReader.queryData(datasourceType, splitIndex);
             ResultSetMetaData rsmd = rs.getMetaData();
             int columnCount = rsmd.getColumnCount();
@@ -232,7 +241,10 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
                     switch (columnTypeName) {
                         case "DATE":
                             if (rs.getObject(i) != null) {
-                                rowDataValues.add(rs.getDate(i) + " " + rs.getTime(i));
+                                if (datasourceType.equalsIgnoreCase(DbusDatasourceType.MYSQL.name()) ||
+                                        datasourceType.equalsIgnoreCase(DbusDatasourceType.ORACLE.name())) {
+                                    rowDataValues.add(rs.getDate(i) + " " + rs.getTime(i));
+                                }
                             } else {
                                 rowDataValues.add(rs.getObject(i));
                             }
@@ -259,7 +271,8 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
                             if (rs.getTimestamp(i) != null) {
 //                                  rowDataValues.add(rs.getTimestamp(i).toString());
                                 String timeStamp = "";
-                                if (datasourceType.toUpperCase().equals(DbusDatasourceType.MYSQL.name())) {
+                                if (datasourceType.toUpperCase().equals(DbusDatasourceType.MYSQL.name())
+                                        ) {
                                     timeStamp = toMysqlTimestampString(rs.getTimestamp(i), rsmd.getPrecision(i));
                                 } else if (datasourceType.toUpperCase().equals(DbusDatasourceType.ORACLE.name())) {
                                     timeStamp = toOracleTimestampString(rs.getTimestamp(i), rsmd.getScale(i));
@@ -324,11 +337,12 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
                 if (isKafkaSend(dealRowMemSize, sendRowsCnt)) {
                     dealRowMemSize = 0;
                     sendRowsCnt = 0;
-                    DbusMessage dbusMessage = buildResultMessage(outputVersion, tuples, dataSourceInfo, dbConf, rsmd, inputSplit.getTargetTableName(), tablePartition, batchNo);
+                    DbusMessage dbusMessage = buildResultMessage(outputVersion, tuples, dataSourceInfo, dbConf, rsmd,
+                            metaInDbus, inputSplit.getTargetTableName(), tablePartition, batchNo);
                     //将数据写入kafka
                     sendMessageToKafka(resultKey, dbusMessage, sendCnt, recvCnt, isError);
                     tuples.clear();
-                    tuples = new ArrayList<>();
+                    //tuples = new ArrayList<>();
                 }
 
                 if (isError.get()) {
@@ -361,7 +375,8 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
 
 
             if (tuples.size() > 0) {
-                DbusMessage dbusMessage = buildResultMessage(outputVersion, tuples, dataSourceInfo, dbConf, rsmd, inputSplit.getTargetTableName(), tablePartition, batchNo);
+                DbusMessage dbusMessage = buildResultMessage(outputVersion, tuples, dataSourceInfo, dbConf, rsmd,
+                        metaInDbus, inputSplit.getTargetTableName(), tablePartition, batchNo);
                 tuples.clear();
                 tuples = null;
 
@@ -417,7 +432,7 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
         stringProducer.send(record, new Callback() {
             public void onCompletion(RecordMetadata metadata, Exception e) {
                 if (e != null) {
-                    e.printStackTrace();
+                    LOG.error("dbusMessage send to kafka exception!", e);
                     isError.set(true);
                 } else {
                     recvCnt.getAndIncrement();
@@ -444,7 +459,8 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
     }
 
     private DbusMessage buildResultMessage(String outputVersion, List<List<Object>> tuples, String dataSourceInfo,
-                                           DBConfiguration dbConf, ResultSetMetaData rsmd, String seriesTableName, String tablePartition, int batchNo) throws SQLException {
+                                           DBConfiguration dbConf, ResultSetMetaData rsmd, MetaWrapper metaInDbus,
+                                           String seriesTableName, String tablePartition, int batchNo) throws SQLException {
 
 
         DbusMessageBuilder builder = new DbusMessageBuilder(outputVersion);
@@ -452,10 +468,16 @@ public class PagedBatchDataFetchingBolt extends BaseRichBolt {
         String dsType = dbConf.getString(DBConfiguration.DataSourceInfo.DS_TYPE);
         int columnCount = rsmd.getColumnCount();
         for (int i = 1; i <= columnCount; i++) {
-            builder.appendSchema(rsmd.getColumnName(i),
-                    DataType.convertDataType(dsType, rsmd.getColumnTypeName(i), rsmd.getPrecision(i), rsmd.getScale(i)),
-                    rsmd.isNullable(i) == 1 ? true : false);
+            String columnName = rsmd.getColumnName(i);
+            MetaWrapper.MetaCell metaCell = metaInDbus.get(columnName);
+            Integer dataPrecision = metaCell.getDataPrecision();
+            Integer dataScale = metaCell.getDataScale();
+            String dataTypeMgr = metaCell.getDataType();
+            boolean nullable = metaCell.isNullable();
+            DataType dataType = DataType.convertDataType(dsType, dataTypeMgr, dataPrecision, dataScale);
+            builder.appendSchema(columnName, dataType, nullable);
         }
+
         for (List<Object> tuple : tuples) {
             builder.appendPayload(tuple.toArray());
         }

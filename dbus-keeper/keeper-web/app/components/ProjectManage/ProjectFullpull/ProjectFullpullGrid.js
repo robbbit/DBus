@@ -11,7 +11,7 @@ import OperatingButton from '@/app/components/common/OperatingButton'
 import styles from './res/styles/index.less'
 
 export default class ProjectFullpullGrid extends Component {
-  componentWillMount () {
+  componentWillMount() {
     // 初始化查询
     // this.handleSearch(this.initParams, true)
   }
@@ -39,11 +39,22 @@ export default class ProjectFullpullGrid extends Component {
    */
   renderNomal = (text, record, index) => (
     <Tooltip title={text}>
-      <div className={styles.ellipsis}>
+      <div className={styles.ellipsis} style={{minWidth: 100}}>
         {text}
       </div>
     </Tooltip>
   )
+
+  renderOperating = (text, record, index) => {
+    const {onModify} = this.props
+    return (
+      <div>
+        <OperatingButton onClick={() => onModify(record)} icon="edit">
+          <FormattedMessage id="app.common.modify" defaultMessage="修改"/>
+        </OperatingButton>
+      </div>
+    )
+  }
 
   renderStatus = (text, record, index) => {
     let color
@@ -84,8 +95,10 @@ export default class ProjectFullpullGrid extends Component {
   renderSinkInfo = (text, record, index) => {
     if (record.targetSinkName && record.targetSinkTopic) {
       return this.renderNomal(`Sink名称:${record.targetSinkName},Topic:${record.targetSinkTopic}`, record, index)
+    } else if (record.targetSinkTopic) {
+      return this.renderNomal(record.targetSinkTopic)
     } else {
-      return null
+      return this.renderNomal('')
     }
   }
 
@@ -312,6 +325,30 @@ export default class ProjectFullpullGrid extends Component {
       {
         title: (
           <FormattedMessage
+            id="app.components.projectManage.projectFullpullHistory.table.splitColumn"
+            defaultMessage="分片列"
+          />
+        ),
+        width: tableWidth[12],
+        dataIndex: 'splitColumn',
+        key: 'splitColumn',
+        render: this.renderComponent(this.renderNomal)
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="app.components.projectManage.projectFullpullHistory.table.fullpullCondition"
+            defaultMessage="拉全量条件"
+          />
+        ),
+        width: tableWidth[12],
+        dataIndex: 'fullpullCondition',
+        key: 'fullpullCondition',
+        render: this.renderComponent(this.renderNomal)
+      },
+      {
+        title: (
+          <FormattedMessage
             id="app.components.projectManage.projectFullpullHistory.table.errMsg"
             defaultMessage="出错信息"
           />
@@ -320,6 +357,14 @@ export default class ProjectFullpullGrid extends Component {
         dataIndex: 'errorMsg',
         key: 'errorMsg',
         render: this.renderComponent(this.renderNomal)
+      },
+      {
+        title: (
+          <FormattedMessage id="app.common.operate" defaultMessage="操作" />
+        ),
+        width: tableWidth[0],
+        key: 'operation',
+        render: this.renderComponent(this.renderOperating)
       }
     ]
     const pagination = {
@@ -339,6 +384,7 @@ export default class ProjectFullpullGrid extends Component {
           dataSource={dataSource}
           columns={columns}
           pagination={pagination}
+          scroll={{x: true}}
           loading={loading}
         />
       </div>

@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -23,7 +23,8 @@ package com.creditease.dbus.utils;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
-import com.creditease.dbus.commons.*;
+import com.creditease.dbus.commons.Constants;
+import com.creditease.dbus.commons.IZkService;
 import com.creditease.dbus.constant.KeeperConstants;
 import com.creditease.dbus.domain.model.DataSource;
 import com.creditease.dbus.domain.model.StormTopology;
@@ -37,7 +38,11 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.text.MessageFormat;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -57,18 +62,17 @@ public class StormToplogyOpHelper {
 
     public static boolean inited = false;
     public static String stormRestApi = "";
-    public static String loginUrl = "";
-    public static String user = "";
-    public static String pass = "";
+    private static IZkService zk;
 
 
     public static void init(IZkService zkService) throws Exception {
-            stormRestApi = (String) zkService.getProperties(KeeperConstants.GLOBAL_CONF).get(KeeperConstants.GLOBAL_CONF_KEY_STORM_REST_API);
-            inited = true;
+        zk = zkService;
+        stormRestApi = (String) zkService.getProperties(KeeperConstants.GLOBAL_CONF).get(KeeperConstants.GLOBAL_CONF_KEY_STORM_REST_API);
+        inited = true;
     }
 
-    public static Map getRunningTopologies(List<Map<String, Object>> dataSources) {
-        Map runningTopologies = new HashMap<>();
+    public static Map<String, StormTopology> getRunningTopologies() throws Exception {
+        Map<String, StormTopology> runningTopologies = new HashMap<>();
         JSONObject topologySummary = JSON.parseObject(topologySummary());
         JSONArray toposArr = topologySummary.getJSONArray("topologies");
         for (int i = 0; i < toposArr.size(); i++) {
@@ -82,8 +86,9 @@ public class StormToplogyOpHelper {
         return runningTopologies;
     }
 
-    public static String getTopoRunningInfoById(String topologyId) {
+    public static String getTopoRunningInfoById(String topologyId) throws Exception {
         String topoWorkers = getForResult(stormRestApi + "/topology-workers/" + topologyId);
+        logger.info(topoWorkers);
         JSONObject topoWorkersObj = JSON.parseObject(topoWorkers);
 
         JSONArray hostPortInfo = topoWorkersObj.getJSONArray("hostPortList");
@@ -96,13 +101,18 @@ public class StormToplogyOpHelper {
         return null;
     }
 
-    public static void populateToposToDs(List<Map<String, Object>> dataSources) {
-        Map runningTopologies = getRunningTopologies(dataSources);
+    public static void populateToposToDs(List<Map<String, Object>> dataSources) throws Exception {
+        Map runningTopologies = getRunningTopologies();
         populateToposToEachDs(runningTopologies, dataSources);
 
     }
 
-    public static String killTopology(String topologyId, int waitTime) {
+    public static StormTopology getTopologyByName(String name) throws Exception {
+        Map<String, StormTopology> runningTopologies = getRunningTopologies();
+        return runningTopologies.get(name);
+    }
+
+    public static String killTopology(String topologyId, int waitTime) throws Exception {
         String topologyKillApi = stormRestApi + "/topology/" + topologyId + "/kill/" + waitTime;
         JSONObject resultJson = null;
             RestTemplate restTemplate = new RestTemplate();
@@ -111,70 +121,8 @@ public class StormToplogyOpHelper {
         return resultJson.getString("status");
     }
 
-    public static String execute(final String pubKeyPath, final String username, final String host, final int port, final String command) throws JSchException {
-        StringBuffer opResult = new StringBuffer();
-        StringBuffer errResult = new StringBuffer();
+    //
 
-        JSch jsch = new JSch();
-        jsch.addIdentity(pubKeyPath);
-        try {
-            // Create and connect session.
-            Session session = jsch.getSession(username, host, port);
-            session.setConfig("StrictHostKeyChecking", "no");
-            session.connect();
-
-            // Create and connect channel.
-            Channel channel = session.openChannel("exec");
-            ((ChannelExec) channel).setCommand(command);
-
-            channel.setInputStream(null);
-            /*BufferedReader input = new BufferedReader(new InputStreamReader(channel
-                    .getInputStream()));*/
-            InputStream in = channel.getInputStream();
-            InputStream err = channel.getExtInputStream();
-            channel.connect();
-            /*
-            // Get the output of remote command.
-            String line;
-            while ((line = input.readLine()) != null) {
-                opResult.append(line);
-            }*/
-
-            //一直等命令执行完毕，然后获取结果
-            byte[] tmp = new byte[1024];
-            while (true) {
-                while (in.available() > 0) {
-                    int i = in.read(tmp, 0, 1024);
-                    if (i < 0) break;
-                    opResult.append(new String(tmp, 0, i));
-                }
-                while (err.available() > 0) {
-                    int i = err.read(tmp, 0, 1024);
-                    if (i < 0) break;
-                    errResult.append(new String(tmp, 0, i));
-                }
-                if (channel.isClosed()) {
-                    if ((in.available() > 0) || (err.available() > 0)) continue;
-                    break;
-                }
-                try {
-                    Thread.sleep(1000);
-                } catch (Exception e) {
-                }
-            }
-
-            //input.close();
-
-            // Disconnect the channel and session.
-            channel.disconnect();
-            session.disconnect();
-        } catch (JSchException e) {
-            logger.error("Execute ssh command {} failed.{}", command, e);
-        } catch (Exception e) {
-            logger.error("Execute ssh command {} failed.{}", command, e);
-        }
-        return errResult.length() > 0 ? errResult.toString() : opResult.toString();
-    }
 
     private static void populateToposToEachDs(Map runningTopologies, List<Map<String, Object>> dataSources) {
         for (Map<String, Object> dataSource : dataSources) {
@@ -214,7 +162,8 @@ public class StormToplogyOpHelper {
                 }
             }
 
-            if (DbusDatasourceType.ORACLE.name().equalsIgnoreCase(type)) {
+            if (DbusDatasourceType.ORACLE.name().equalsIgnoreCase(type) || DbusDatasourceType.MONGO.name().equalsIgnoreCase(type)
+                    ) {
                 String dispatcherAppenderTopoName = dsName + "-dispatcher-appender";
                 String[] streamSeperatedToposName = {dsName + "-dispatcher", dsName + "-appender"};
                 String streamTopoForDsAvailable = combinedTopoProcessing(runningTopologies, toposOfDsMap, dispatcherAppenderTopoName, streamSeperatedToposName);
@@ -289,22 +238,24 @@ public class StormToplogyOpHelper {
         return checkResult;
     }
 
-    public static String topologySummary() {
+    public static String topologySummary() throws Exception {
         return getForResult(stormRestApi + "/topology/summary");
     }
 
-    public static String nimbusSummary() {
+    public static String nimbusSummary() throws Exception {
         return getForResult(stormRestApi + "/nimbus/summary");
     }
 
-    public static String supervisorSummary() {
+    public static String supervisorSummary() throws Exception {
         return getForResult(stormRestApi + "/supervisor/summary");
     }
 
-    private static String getForResult(String api) {
+    private static String getForResult(String api) throws Exception {
         String result = null;
             RestTemplate restTemplate = new RestTemplate();
             result = restTemplate.getForObject(api, String.class);
         return result;
     }
+
+
 }

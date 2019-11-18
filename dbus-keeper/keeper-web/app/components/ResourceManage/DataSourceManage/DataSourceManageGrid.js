@@ -88,12 +88,62 @@ export default class DataSourceManageGrid extends Component {
     </div>)
   }
 
+  renderOggOrCanal = (text, record, index) => {
+    let title
+    if (record.type === 'oracle') {
+      title = <div>OGG Host：{record.oggOrCanalHost}<br/>
+        OGG Path：{record.oggOrCanalPath}<br/>
+        OGG Replicat Name：{record.oggReplicatName}<br/>
+        OGG Trail Prefix: {record.oggTrailName}<br/>
+      </div>
+    } else if (record.type === 'mysql') {
+      title = <div>Canal Host：{record.oggOrCanalHost}<br/>
+        Canal Path：{record.oggOrCanalPath}<br/>
+      </div>
+    }
+
+    return (
+      <Tooltip title={title}>
+        <div className={styles.ellipsis}>
+          {text}
+        </div>
+      </Tooltip>
+    )
+  }
+
   /**
    * @description option render
    */
   renderOperating = (text, record, index) => {
-    const {onModify, onMount, onTopo, onAdd, onDBusData} = this.props
-    const menus = [
+    const {onRerun, onClearFullPullAlarm, onModify, onMount, onTopo, onAdd, onDBusData} = this.props
+    let menus = []
+    menus.push({
+      text: <FormattedMessage
+        id="app.components.projectManage.projectTopology.table.rerun"
+        defaultMessage="拖回重跑"
+      />,
+      icon: 'reload',
+      disabled: record.type === 'db2',
+      onClick: () => onRerun(record),
+    })
+    if (record.type === 'mysql' || record.type === 'oracle' || record.type === 'mongo' || record.type === 'db2') {
+      menus.push({
+        text: <FormattedMessage
+          id="app.components.resourceManage.dataSource.clearFullPullAlarm"
+          defaultMessage="消除全量报警"
+        />,
+        confirmText: <span>
+          <FormattedMessage
+            id="app.components.resourceManage.dataSource.clearFullPullAlarm"
+            defaultMessage="消除全量报警"
+          />?
+        </span>,
+        icon: 'exclamation-circle-o',
+        onClick: () => onClearFullPullAlarm(record),
+      })
+    }
+    menus = [
+      ...menus,
       {
         text: <FormattedMessage
           id="app.components.resourceManage.dataSource.viewMountProject"
@@ -118,11 +168,15 @@ export default class DataSourceManageGrid extends Component {
       />,
       icon: 'delete',
       onClick: () => this.handleDelete(record),
-      confirmText: '确认删除？'
+      confirmText: <div><FormattedMessage
+        id="app.common.delete"
+        defaultMessage="删除"
+      />？</div>
     })
     return (
       <div>
-        <OperatingButton disabled={record.type !== 'mysql' && record.type !== 'oracle'} icon="plus" onClick={() => onAdd(record)}>
+        <OperatingButton disabled={record.type !== 'mysql' && record.type !== 'oracle' && record.type !== 'mongo'
+        } icon="plus" onClick={() => onAdd(record)}>
           <FormattedMessage id="app.common.addSchema" defaultMessage="添加Schema" />
         </OperatingButton>
         <OperatingButton icon="share-alt" onClick={() => onTopo(record.id)}>
@@ -131,7 +185,8 @@ export default class DataSourceManageGrid extends Component {
             defaultMessage="拓扑管理"
           />
         </OperatingButton>
-        <OperatingButton disabled={record.type !== 'mysql' && record.type !== 'oracle'} icon="bars" onClick={() => onDBusData(record)}>
+        <OperatingButton disabled={record.type !== 'mysql' && record.type !== 'oracle'
+        } icon="bars" onClick={() => onDBusData(record)}>
           <FormattedMessage
             id="app.components.resourceManage.dataSource.viewDBusData"
             defaultMessage="查看DBus数据"
@@ -241,6 +296,18 @@ export default class DataSourceManageGrid extends Component {
         dataIndex: 'topoAvailableStatus',
         key: 'topoAvailableStatus',
         render: this.renderComponent(this.renderTopoStatus)
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="app.components.resourceManage.oggOrCanal"
+            defaultMessage="OGG或Canal"
+          />
+        ),
+        width: this.tableWidth[1],
+        dataIndex: 'oggOrCanalHost',
+        key: 'oggOrCanalHost',
+        render: this.renderComponent(this.renderOggOrCanal)
       },
       {
         title: (

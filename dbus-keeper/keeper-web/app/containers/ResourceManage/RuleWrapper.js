@@ -1,5 +1,6 @@
 import React, { PropTypes, Component } from 'react'
 import { connect } from 'react-redux'
+import { FormattedMessage } from 'react-intl'
 import { createStructuredSelector } from 'reselect'
 import Helmet from 'react-helmet'
 import {message, Popover} from 'antd'
@@ -71,7 +72,10 @@ export default class RuleWrapper extends Component {
       })
         .then(res => {
           if (res && res.status === 0) {
-            const {rules, offset, topic} = res.payload
+            let {rules, offset, topic} = res.payload
+            if (offset >= 20) {
+              offset -= 20
+            }
             this.setState({
               rules: rules.map(rule => ({
                 ...rule,
@@ -82,8 +86,8 @@ export default class RuleWrapper extends Component {
                 key: this.handleRandom('rule')
               })),
               kafkaTopic: topic,
-              kafkaOffset: offset - 20,
-            })
+              kafkaOffset: offset,
+            }, () => this.handleExecuteRule([]))
           } else {
             message.warn(res.message)
           }
@@ -296,6 +300,51 @@ export default class RuleWrapper extends Component {
             self.setState({
               resultSource: generateResultSourceFromData(data, offset, dataType),
               resultColumns: generateResultColumnFromData(data, offset, dataType)
+            }, () => {
+              const {rules} = this.state
+              if (rules.length) return
+              // flattenUms
+              if (this.query.dsType === 'log_ums') {
+                rules.push({
+                  groupId: this.query.groupId,
+                  ruleTypeName: 'flattenUms',
+                  ruleGrammar: [this.generateRuleGrammar()],
+                  key: this.handleRandom('rule')
+                })
+              }
+              // toIndex
+              rules.push({
+                groupId: this.query.groupId,
+                ruleTypeName: 'toIndex',
+                ruleGrammar: [this.generateRuleGrammar()],
+                key: this.handleRandom('rule')
+              })
+              let text = rules[rules.length - 1];
+              let ruleGrammar = [];
+              const {resultColumns} = this.state
+              for (let i = 0; i < resultColumns.length; i++) {
+                ruleGrammar.push(this.generateRuleGrammar());
+                ruleGrammar[i].ruleScope = "" + i;
+                ruleGrammar[i].ruleParamter = resultColumns[i].key;
+              }
+              text.ruleGrammar = ruleGrammar;
+              // saveAs
+              rules.push({
+                groupId: this.query.groupId,
+                ruleTypeName: 'saveAs',
+                ruleGrammar: [this.generateRuleGrammar()],
+                key: this.handleRandom('rule')
+              })
+              text = rules[rules.length - 1];
+              ruleGrammar = []
+              for (let i = 0; i < resultColumns.length; i++) {
+                ruleGrammar.push(this.generateRuleGrammar());
+                ruleGrammar[i].ruleScope = "" + i;
+                ruleGrammar[i].name = "" + resultColumns[i].key;
+              }
+              text.ruleGrammar = ruleGrammar;
+              this.handleSetRules(rules)
+              message.info('已自动生成规则')
             });
           } else {
             message.warn(res.message)
@@ -490,7 +539,10 @@ export default class RuleWrapper extends Component {
           onExecuteRule={this.handleExecuteRule}
           onSaveAllRules={this.handleSaveAllRules}
         />
-        <h2>Rules:</h2>
+        <h2><FormattedMessage
+          id="app.components.resourceManage.rule.editRule"
+          defaultMessage="编辑规则"
+        />:</h2>
         <RuleEditorGrid
           query={this.query}
           rules={rules}
@@ -498,7 +550,10 @@ export default class RuleWrapper extends Component {
           onSetRules={this.handleSetRules}
           onExecuteRule={this.handleExecuteRule}
         />
-        <h2>Result:</h2>
+        <h2><FormattedMessage
+          id="app.components.resourceManage.rule.result"
+          defaultMessage="运行结果"
+        />:</h2>
         <RuleEditorResultGrid
           resultSource={resultSource}
           resultColumns={resultColumns}

@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,30 +20,22 @@
 
 package com.creditease.dbus.service;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.creditease.dbus.base.ResultEntity;
 import com.creditease.dbus.base.com.creditease.dbus.utils.RequestSender;
 import com.creditease.dbus.bean.ProjectBean;
 import com.creditease.dbus.constant.KeeperConstants;
 import com.creditease.dbus.constant.MessageCode;
 import com.creditease.dbus.constant.ServiceNames;
-import com.creditease.dbus.domain.model.Project;
-import com.creditease.dbus.domain.model.ProjectEncodeHint;
-import com.creditease.dbus.domain.model.ProjectResource;
-import com.creditease.dbus.domain.model.ProjectSink;
-import com.creditease.dbus.domain.model.ProjectUser;
-import com.creditease.dbus.domain.model.User;
+import com.creditease.dbus.domain.model.*;
 import com.fasterxml.jackson.core.type.TypeReference;
-
 import org.apache.commons.lang.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+
+import java.util.*;
 
 /**
  * Created by zhangyf on 2018/3/7.
@@ -51,9 +43,12 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProjectService {
 
+    protected Logger logger = LoggerFactory.getLogger(getClass());
 
     @Autowired
     private RequestSender sender;
+    @Autowired
+    private GrafanaDashBoardService dashBoardService;
 
     public ResultEntity queryProjects(Integer userId, String roleType) {
         Map<String, Object> param = new HashMap<>();
@@ -109,24 +104,21 @@ public class ProjectService {
         return result.getBody();
     }
 
-    public ResultEntity deleteProject(int id) {
-        ResponseEntity<ResultEntity> result = sender.get(ServiceNames.KEEPER_SERVICE, "/projects/delete/{id}", id);
-        if (!result.getStatusCode().is2xxSuccessful() || !result.getBody().success())
-            return result.getBody();
+    public ResultEntity deleteProject(int id) throws Exception{
+        ResponseEntity<ResultEntity> result = sender.get(ServiceNames.KEEPER_SERVICE, "/projects/select/{id}", id);
+        if (!result.getStatusCode().is2xxSuccessful() || !result.getBody().success()){
+	        return result.getBody();
+        }
+        Project project = result.getBody().getPayload(new TypeReference<Project>() {});
 
-        result = sender.get(ServiceNames.KEEPER_SERVICE, "/projectUser/delete-by-project-id/{id}", id);
-        if (!result.getStatusCode().is2xxSuccessful() || !result.getBody().success())
-            return result.getBody();
+        //删除project相关数据
+        result = sender.get(ServiceNames.KEEPER_SERVICE, "/projects/delete/{id}", id);
+        if (!result.getStatusCode().is2xxSuccessful() || !result.getBody().success()){
+	        return result.getBody();
+        }
 
-        result = sender.get(ServiceNames.KEEPER_SERVICE, "/projectSink/delete-by-project-id/{id}", id);
-        if (!result.getStatusCode().is2xxSuccessful() || !result.getBody().success())
-            return result.getBody();
-
-        result = sender.get(ServiceNames.KEEPER_SERVICE, "/projectResource/delete-by-project-id/{id}", id);
-        if (!result.getStatusCode().is2xxSuccessful() || !result.getBody().success())
-            return result.getBody();
-
-        result = sender.get(ServiceNames.KEEPER_SERVICE, "/projectEncodeHint/delete-by-project-id/{id}", id);
+	    // 删除grafana dashboard
+        dashBoardService.deleteDashboard(project.getProjectName());
         return result.getBody();
     }
 
@@ -338,13 +330,13 @@ public class ProjectService {
         return true;
     }
 
-	public ResultEntity getPrincipal(int id) {
+    public ResultEntity getPrincipal(int id) {
         return sender.get(ServiceNames.KEEPER_SERVICE, "/projects/getPrincipal/{0}", id).getBody();
-	}
+    }
 
-	public ResultEntity getMountedProjrct(String  queryString) {
+    public ResultEntity getMountedProjrct(String  queryString) {
         return sender.get(ServiceNames.KEEPER_SERVICE, "/projects/getMountedProjrct", queryString).getBody();
-	}
+    }
 
     /**
      * 根据projectId获取project信息，只有project的信息
@@ -356,8 +348,19 @@ public class ProjectService {
         return result.getBody();
     }
 
-	public ResultEntity search(String queryString) {
+    public ResultEntity search(String queryString) {
         ResponseEntity<ResultEntity> result = sender.get(ServiceNames.KEEPER_SERVICE, "/projects/search", queryString);
         return result.getBody();
-	}
+    }
+
+    public int getRunningTopoTables(int id) {
+        List<ProjectTopoTable> projectTopoTables = sender.get(ServiceNames.KEEPER_SERVICE, "/projects/getRunningTopoTables/{0}", id)
+                .getBody().getPayload(new TypeReference<List<ProjectTopoTable>>() {
+        });
+        return projectTopoTables.size();
+    }
+
+    public ResultEntity getAllResourcesByQuery(String queryString) {
+        return sender.get(ServiceNames.KEEPER_SERVICE, "/projects/getAllResourcesByQuery", queryString).getBody();
+    }
 }

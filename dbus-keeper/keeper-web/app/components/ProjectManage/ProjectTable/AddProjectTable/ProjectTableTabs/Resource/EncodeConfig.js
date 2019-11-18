@@ -9,7 +9,8 @@ import {
   Switch,
   Icon,
   Spin,
-  Tooltip
+  Tooltip,
+  message
 } from 'antd'
 import { FormattedMessage } from 'react-intl'
 import { intlMessage } from '@/app/i18n'
@@ -19,36 +20,74 @@ const RadioGroup = Radio.Group
 const Option = Select.Option
 // 导入样式
 import styles from '../../../res/styles/index.less'
+import {SEARCH_TABLE_RESOURCES_COLUMNS_LIST_API} from '@/app/containers/ProjectManage/api/index.js'
+import Request, {getUserInfo} from "@/app/utils/request";
 
 export default class EncodeConfig extends Component {
   constructor (props) {
     super(props)
-    this.NomalTableWidth = ['10%', '10%', '10%', '20%', '20%', '20%', '5%', '5%']
+    this.NomalTableWidth = ['10%', '10%', '10%','10%','15%', '15%', '15%', '5%', '10%']
     this.state = {
       encodeOutputColumns: {},
       encodeSourceSelected: [],
-      outputListType: '1'
+      outputListType: '0'
     }
   }
   componentWillMount () {
-    // 初始化赋值
-    const { encodes, tid } = this.props
-    const encodeOutputColumns =
-      encodes && encodes[tid] && encodes[tid].encodeOutputColumns
-        ? fromJS(encodes[tid].encodeOutputColumns)
-        : fromJS({})
-    const outputListType =
-      (encodes && encodes[tid] && encodes[tid].outputListType.toString()) ||
-      '1'
-    this.setState({
-      encodeOutputColumns: encodeOutputColumns.toJS(),
-      outputListType: outputListType
-    })
-    // 向父层传递数据
-    this.handleSaveToReudx(tid, {
-      encodeOutputColumns: encodeOutputColumns.toJS(),
-      outputListType
-    })
+    const {tid, projectId} = this.props
+    Request(SEARCH_TABLE_RESOURCES_COLUMNS_LIST_API, {
+      params: {
+        tableId: tid,
+        projectId: projectId
+      },
+      method: 'get' })
+      .then(res => {
+        if (res && res.status === 0) {
+          // 初始化赋值
+          const { encodes } = this.props
+          let encodeOutputColumns
+          if(encodes && encodes[tid] && encodes[tid].encodeOutputColumns) {
+            encodeOutputColumns = fromJS(encodes[tid].encodeOutputColumns)
+          } else {
+            const { payload } = res
+            if (payload && payload.length === 0) {
+              message.warn('该表无列信息', 2)
+            }
+            let temporaryEncodeSource = {}
+            Object.values(payload).map(item => {
+              const es = item.encodeSource
+              temporaryEncodeSource[`_${item.cid}`] = {
+                ...item,
+                tableId: item.tid,
+                fieldName: item.columnName,
+                encodeSource: es === 0 || es ? String(es) : '3'
+              }
+            })
+            encodeOutputColumns = fromJS({
+              ...temporaryEncodeSource,
+            })
+          }
+          const outputListType =
+            (encodes && encodes[tid] && encodes[tid].outputListType.toString()) ||
+            '0'
+          this.setState({
+            encodeOutputColumns: encodeOutputColumns.toJS(),
+            outputListType: outputListType
+          })
+          // 向父层传递数据
+          this.handleSaveToReudx(tid, {
+            encodeOutputColumns: encodeOutputColumns.toJS(),
+            outputListType
+          })
+        } else {
+          message.warn(res.message)
+        }
+      })
+      .catch(error => {
+        error.response && error.response.data && error.response.data.message
+          ? message.error(error.response.data.message)
+          : message.error(error.message)
+      })
   }
   /**
    * @description 将选中的encodeID过滤并添加到临时encodeOutputColumns中
@@ -234,7 +273,7 @@ export default class EncodeConfig extends Component {
    */
   renderNomal = width => (text, record, index) => {
     let style = {}
-    let hoverText = ""
+    let hoverText = text
     // 1代表源端删除了该列，此处给出提示，不需要用户自己删除
     if (record.schemaChangeFlag === 1) {
       style = {color : "#FF0000"}
@@ -247,7 +286,7 @@ export default class EncodeConfig extends Component {
     return (
       <div
         title={`${hoverText}`}
-        style={{maxWidth: `${parseFloat(width) / 100 * 1000}px`, ...style}}
+
         className={styles.ellipsis}
       >
         {text}
@@ -264,7 +303,7 @@ export default class EncodeConfig extends Component {
     }
     switch (str) {
       case '0':
-        return <span>源端脱敏</span>
+        return <span>DBA脱敏</span>
       case '1':
         return <span>项目级脱敏</span>
       default:
@@ -290,6 +329,29 @@ export default class EncodeConfig extends Component {
     }
   };
 
+  renderSpecialApprove = width => (text, record, index) => {
+    const userInfo = getUserInfo()
+    return (
+      <div
+        title={text}
+
+      >
+        <Switch
+          checked={
+            text === 1
+          }
+          size="small"
+          checkedChildren={<Icon type="check"/>}
+          unCheckedChildren={<Icon type="cross"/>}
+          disabled={userInfo.roleType !== "admin"}
+          onChange={value =>
+            this.handleChangeEncode(Number(value), record.cid, 'specialApprove')
+          }
+        />
+      </div>
+    )
+  }
+
   /**
    * @description encodeConfig的脱敏插件
    */
@@ -306,14 +368,14 @@ export default class EncodeConfig extends Component {
     const showComponent = encodeSource !== '3'
     return (
       <div
-        style={{ maxWidth: `${parseFloat(width) / 100 * 1000}px` }}
+
         className={styles.ellipsis}
       >
         {showComponent ? (
           <Select
             showSearch
             optionFilterProp='children'
-            style={{ width: 170 }}
+            style={{ width: 150 }}
             notFoundContent={loading ? <Spin size="small" /> : null}
             placeholder={placeholder(
               'app.components.projectManage.projectHome.tabs.resource.encodePlugin'
@@ -375,14 +437,14 @@ export default class EncodeConfig extends Component {
 
     return (
       <div
-        style={{ maxWidth: `${parseFloat(width) / 100 * 1000}px` }}
+
         className={styles.ellipsis}
       >
         {showComponent ? (
           <Select
             showSearch
             optionFilterProp='children'
-            style={{ width: 170 }}
+            style={{ width: 150 }}
             notFoundContent={loading ? <Spin size="small" /> : null}
             placeholder={placeholder(
               'app.components.projectManage.projectHome.tabs.resource.encodeType'
@@ -427,7 +489,7 @@ export default class EncodeConfig extends Component {
         }
       })
     return (
-      <div style={{ maxWidth: `${parseFloat(width) / 100 * 1000}px` }}>
+      <div>
         {showComponent ? (
           <Input
             disabled={this.handleFilterEncodeType(record.cid)}
@@ -459,7 +521,7 @@ export default class EncodeConfig extends Component {
     return (
       <div
         title={text}
-        style={{ maxWidth: `${parseFloat(width) / 100 * 1000}px` }}
+
       >
         {showComponent ? (
           <Switch
@@ -484,10 +546,13 @@ export default class EncodeConfig extends Component {
    * @description table的 Operating render
    */
 
-  renderOperating = (text, record, index) => {
+  renderOperating = width => (text, record, index) => {
     const { outputListType } = this.state
     return (
-      <div>
+      <div
+        title={text}
+
+      >
         <a
           onClick={e => this.handleDelEncode(e, record.cid)}
           disabled={outputListType === '0'}
@@ -504,6 +569,22 @@ export default class EncodeConfig extends Component {
       encodeSourceSelected,
       outputListType
     } = this.state
+    let isChanged = false
+    for (let cid in encodeOutputColumns) {
+      if(encodeOutputColumns[cid].encodeSource === undefined) {
+        encodeOutputColumns[cid].encodeSource = '3'
+        isChanged = true
+      }
+    }
+    if(isChanged) {
+      const { tid } = this.props
+      this.setState({ encodeOutputColumns })
+      // 向父层传递数据
+      this.handleSaveToReudx(tid, {
+        encodeOutputColumns,
+        outputListType
+      })
+    }
     const { loading, result } = encodeList
     const encodesAsyn = result && Object.values(result)
     const dataSource = Object.values(encodeOutputColumns)
@@ -537,15 +618,29 @@ export default class EncodeConfig extends Component {
       {
         title: (
           <FormattedMessage
+            id="app.components.projectManage.projectHome.tabs.resource.specialApprove"
+            defaultMessage="特批不脱敏"
+          />
+        ),
+        width: this.NomalTableWidth[2],
+        dataIndex: 'specialApprove',
+        key: 'specialApprove',
+        render: this.renderComponent(
+          this.renderSpecialApprove(this.NomalTableWidth[2])
+        )
+      },
+      {
+        title: (
+          <FormattedMessage
             id="app.components.projectManage.projectHome.tabs.resource.encodeNeed"
             defaultMessage="脱敏要求"
           />
         ),
-        width: this.NomalTableWidth[2],
+        width: this.NomalTableWidth[3],
         dataIndex: 'encodeSource',
         key: 'encodeSource',
         render: this.renderComponent(
-          this.renderEncodeNeed(this.NomalTableWidth[2])
+          this.renderEncodeNeed(this.NomalTableWidth[3])
         )
       },
       {
@@ -555,11 +650,11 @@ export default class EncodeConfig extends Component {
             defaultMessage="脱敏插件"
           />
         ),
-        width: this.NomalTableWidth[3],
+        width: this.NomalTableWidth[4],
         dataIndex: 'encodePluginId',
         key: 'encodePluginId',
         render: this.renderComponent(
-          this.renderEncodePlugin(this.NomalTableWidth[3])
+          this.renderEncodePlugin(this.NomalTableWidth[4])
         )
       },
       {
@@ -569,11 +664,11 @@ export default class EncodeConfig extends Component {
             defaultMessage="脱敏规则"
           />
         ),
-        width: this.NomalTableWidth[4],
+        width: this.NomalTableWidth[5],
         dataIndex: 'encodeType',
         key: 'encodeType',
         render: this.renderComponent(
-          this.renderEncodeType(this.NomalTableWidth[4])
+          this.renderEncodeType(this.NomalTableWidth[5])
         )
       },
       {
@@ -583,11 +678,11 @@ export default class EncodeConfig extends Component {
             defaultMessage="脱敏参数"
           />
         ),
-        width: this.NomalTableWidth[5],
+        width: this.NomalTableWidth[6],
         dataIndex: 'encodeParam',
         key: 'encodeParam',
         render: this.renderComponent(
-          this.renderEncodeParam(this.NomalTableWidth[5])
+          this.renderEncodeParam(this.NomalTableWidth[6])
         )
       },
       {
@@ -597,72 +692,103 @@ export default class EncodeConfig extends Component {
             defaultMessage="截取"
           />
         ),
-        width: this.NomalTableWidth[6],
+        width: this.NomalTableWidth[7],
         dataIndex: 'truncate',
         key: 'truncate',
         render: this.renderComponent(
-          this.renderTruncate(this.NomalTableWidth[6])
+          this.renderTruncate(this.NomalTableWidth[7])
         )
       },
       {
         title: (
           <FormattedMessage id="app.common.operate" defaultMessage="操作" />
         ),
-        render: this.renderComponent(this.renderOperating)
+        width: this.NomalTableWidth[7],
+        render: this.renderComponent(
+          this.renderOperating(this.NomalTableWidth[7])
+        )
       }
     ]
     return (
       <div className={styles.encodeForm}>
         <div className={styles.form}>
-          <div className={styles.label}>选择输出类型：</div>
+          {/*<div className={styles.label}>选择输出类型：</div>*/}
           <div className={styles.formItem}>
+            <FormattedMessage
+              id="app.components.projectManage.projectTable.outputType"
+              defaultMessage="选择输出类型"
+            />：
             <RadioGroup
               onChange={this.handleRadioChange}
               value={outputListType}
             >
               <Radio value="0">
-                输出所有列
-                <Tooltip title="与源端的输出列始终保持一致，如果源端发生了表结构变更，输出列也会随之改变">
+                <FormattedMessage
+                  id="app.components.projectManage.projectTable.outputAll"
+                  defaultMessage="输出所有列"
+                />
+                <Tooltip title={
+                  <FormattedMessage
+                    id="app.components.projectManage.projectTable.outputTip"
+                    defaultMessage="与源端的输出列始终保持一致，如果源端发生了表结构变更，输出列也会随之改变"
+                  />
+                }>
                   <Icon
                     style={{ color: 'red', marginLeft: '4px' }}
                     type="question-circle-o"
                   />
                 </Tooltip>
               </Radio>
-              <Radio value="1">输出固定列</Radio>
+              <Radio value="1">
+                <FormattedMessage
+                  id="app.components.projectManage.projectTable.outputFixed"
+                  defaultMessage="输出固定列"
+                />
+              </Radio>
             </RadioGroup>
+            {outputListType === '1' && (
+              <div className={styles.encodeAdd}>
+                <Select
+                  className={styles.select}
+                  mode="multiple"
+                  placeholder={placeholder(
+                    'app.components.projectManage.projectHome.tabs.resource.line'
+                  )}
+                  onChange={this.handleSelectEncodes}
+                  notFoundContent={loading ? <Spin size="small" /> : null}
+                  value={encodeSourceSelected}
+                >
+                  {encodesAsyn.map(item => (
+                    <Option value={`${item.cid}`} key={`${item.cid}`}>
+                      {item.encodeType ?
+                        <span
+                          title={item.encodeSource === 0 ? 'DBA脱敏' : '项目级脱敏'}
+                        >
+                          {item.columnName}
+                          <Icon
+                            type="lock"
+                            style={item.encodeSource === 0 ? { color: "red"}: { color: "#00c1de"}}
+                          />
+                        </span>
+                        : item.columnName}
+                    </Option>
+                  ))}
+                </Select>
+                <Button
+                  type="primary"
+                  className={styles.button}
+                  onClick={this.handleAddEncode}
+                >
+                  <FormattedMessage
+                    id="app.common.addColumn"
+                    defaultMessage="添加列"
+                  />
+                </Button>
+              </div>
+            )}
           </div>
         </div>
-        {outputListType === '1' && (
-          <div className={styles.encodeAdd}>
-            <Select
-              className={styles.select}
-              mode="multiple"
-              placeholder={placeholder(
-                'app.components.projectManage.projectHome.tabs.resource.line'
-              )}
-              onChange={this.handleSelectEncodes}
-              notFoundContent={loading ? <Spin size="small" /> : null}
-              value={encodeSourceSelected}
-            >
-              {encodesAsyn.map(item => (
-                <Option value={`${item.cid}`} key={`${item.cid}`}>
-                  {item.columnName}
-                </Option>
-              ))}
-            </Select>
-            <Button
-              type="primary"
-              className={styles.button}
-              onClick={this.handleAddEncode}
-            >
-              <FormattedMessage
-                id="app.common.addColumn"
-                defaultMessage="添加列"
-              />
-            </Button>
-          </div>
-        )}
+
         <div className={styles.table}>
           <Table
             rowKey={record => record.cid}
@@ -671,6 +797,7 @@ export default class EncodeConfig extends Component {
             columns={columns}
             loading={loading}
             pagination={false}
+            scroll={{ x: true, y: 370 }}
           />
         </div>
       </div>

@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -189,6 +189,16 @@ public class ZkService implements IZkService {
     }
 
     /**
+     * 删除指定节点
+     * @param path 节点path
+     */
+    @Override
+    public void rmr(String path) throws Exception {
+        client.delete().deletingChildrenIfNeeded().forPath(path);
+        logger.info("节点删除成功, Path: " + path );
+    }
+
+    /**
      * 读取指定节点数据内容
      * @param path 节点path
      * @return
@@ -240,11 +250,11 @@ public class ZkService implements IZkService {
                 //logger.info("CAS设置数据成功，path：" + path );
                 return stat.getVersion();
             } else {
-                logger.error("CAS设置数据失败，path：" + path);
+                logger.error("CAS设置数据失败，path : {}", path);
                 return -1;
             }
         } catch (KeeperException.BadVersionException ex) {
-            logger.error("CAS设置数据失败，path：" + path);
+            logger.error("CAS设置数据失败，path : {},error msg : {}", path, ex.getMessage());
             return -1;
         }
 

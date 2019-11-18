@@ -5,10 +5,10 @@ import OperatingButton from '@/app/components/common/OperatingButton'
 
 // 导入样式
 import styles from './res/styles/index.less'
-import Request from "@/app/utils/request";
-
+import dateFormat from 'dateformat'
 const FormItem = Form.Item
 const Option = Select.Option
+
 
 export default class DataTableManageGrid extends Component {
   constructor (props) {
@@ -58,7 +58,7 @@ export default class DataTableManageGrid extends Component {
         "." + record.version + "." + "0" + "." + record.physicalTableRegex;
     }
     const title = <div>tableName：{record.tableName}<br/>
-      tableNameAlias：{record.tableName}<br/>
+      tableNameAlias：{record.tableNameAlias}<br/>
       physicalTableRegex: {record.physicalTableRegex}<br/>
       outputTopic：{record.outputTopic}<br/>
       namespace: {namespace}<br/>
@@ -125,11 +125,12 @@ export default class DataTableManageGrid extends Component {
    * @description option render
    */
   renderOperating = (text, record, index) => {
-    const {onCheckDataLine,onOpenSourceInsightModal,onMount, onModify,onOpenZKModal} = this.props
+    const {onRerun, onCheckDataLine,onOpenSourceInsightModal,onMount, onModify,onOpenZKModal,onOpenRuleImportModal,
+      onHandleDownload} = this.props
     const dsType = record.dsType
-    const isMysqlOrOracle = dsType === 'mysql' || dsType === 'oracle'
+    const notLog = dsType === 'mysql' || dsType === 'oracle' || dsType === 'mongo'
     let menus
-    if (isMysqlOrOracle) {
+    if (notLog) {
       menus = [
         {
           text: <FormattedMessage
@@ -138,7 +139,10 @@ export default class DataTableManageGrid extends Component {
           />,
           icon: 'right',
           onClick: () => this.handleStart(record),
-          confirmText: 'start ?'
+          confirmText: <div><FormattedMessage
+            id="app.components.resourceManage.dataTable.start"
+            defaultMessage="启动"
+          />?</div>
         },
         {
           text: <FormattedMessage
@@ -147,7 +151,12 @@ export default class DataTableManageGrid extends Component {
           />,
           icon: 'pause',
           onClick: () => this.handleStop(record),
-          confirmText: 'stop ?'
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.stop"
+              defaultMessage="停止"
+            />?
+          </div>
         },
         {
           text: <FormattedMessage
@@ -156,7 +165,12 @@ export default class DataTableManageGrid extends Component {
           />,
           icon: 'poweroff',
           onClick: () => this.handleActiveInactive(record, 'abort'),
-          confirmText: 'active ?'
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.active"
+              defaultMessage="激活"
+            />?
+          </div>
         },
         {
           text: <FormattedMessage
@@ -165,7 +179,12 @@ export default class DataTableManageGrid extends Component {
           />,
           icon: 'poweroff',
           onClick: () => this.handleActiveInactive(record, 'inactive'),
-          confirmText: 'inactive ?'
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.inactive"
+              defaultMessage="禁用"
+            />?
+          </div>
         },
         {
           isDivider: true
@@ -185,12 +204,18 @@ export default class DataTableManageGrid extends Component {
           />,
           icon: 'delete',
           onClick: () => this.handleDelete(record),
-          confirmText: '确认删除？'
+          disabled: record.status === 'ok',
+          confirmText: <div>
+            <FormattedMessage
+              id="app.common.delete"
+              defaultMessage="删除"
+            />?
+          </div>
         },
         {
           text: <FormattedMessage
             id="app.components.resourceManage.dataTable.sourceEncode"
-            defaultMessage="源端脱敏"
+            defaultMessage="DBA脱敏"
           />,
           icon: 'lock',
           onClick: () => this.handleEncode(record)
@@ -200,12 +225,26 @@ export default class DataTableManageGrid extends Component {
         },
         {
           text: <FormattedMessage
+            id="app.components.projectManage.projectTopology.table.rerun"
+            defaultMessage="拖回重跑"
+          />,
+          icon: 'reload',
+          disabled: record.dsType !== 'db2',
+          onClick: () => onRerun(record),
+        },
+        {
+          text: <FormattedMessage
             id="app.components.resourceManage.dataTable.originalFullpull"
             defaultMessage="阻塞式拉全量"
           />,
           icon: 'export',
           onClick: () => this.handleFullPull(record),
-          confirmText: '确认拉全量？'
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.originalFullpull"
+              defaultMessage="阻塞式拉全量"
+            />?
+          </div>
         },
         {
           text: <FormattedMessage
@@ -250,48 +289,93 @@ export default class DataTableManageGrid extends Component {
     } else {
       menus = [
         {
-          text: 'Start',
+          text: <FormattedMessage
+            id="app.components.resourceManage.dataTable.start"
+            defaultMessage="启动"
+          />,
           icon: 'right',
           onClick: () => this.handleStart(record),
-          confirmText: 'start ?'
+          confirmText: <div><FormattedMessage
+            id="app.components.resourceManage.dataTable.start"
+            defaultMessage="启动"
+          />?</div>
         },
         {
-          text: 'Stop',
+          text: <FormattedMessage
+            id="app.components.resourceManage.dataTable.stop"
+            defaultMessage="停止"
+          />,
           icon: 'pause',
           onClick: () => this.handleStop(record),
-          confirmText: 'stop ?'
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.stop"
+              defaultMessage="停止"
+            />?
+          </div>
         },
         {
-          text: 'Active',
+          text: <FormattedMessage
+            id="app.components.resourceManage.dataTable.active"
+            defaultMessage="激活"
+          />,
           icon: 'poweroff',
           onClick: () => this.handleActiveInactive(record, 'abort'),
-          confirmText: 'active ?'
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.active"
+              defaultMessage="激活"
+            />?
+          </div>
         },
         {
-          text: 'Inactive',
+          text: <FormattedMessage
+            id="app.components.resourceManage.dataTable.inactive"
+            defaultMessage="禁用"
+          />,
           icon: 'poweroff',
           onClick: () => this.handleActiveInactive(record, 'inactive'),
-          confirmText: 'inactive ?'
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.inactive"
+              defaultMessage="禁用"
+            />?
+          </div>
         },
         {
           isDivider: true
         },
         {
-          text: '修改',
+          text: <FormattedMessage
+            id="app.common.modify"
+            defaultMessage="修改"
+          />,
           icon: 'edit',
           onClick: () => onModify(record)
         },
         {
-          text: '删除',
+          text: <FormattedMessage
+            id="app.common.delete"
+            defaultMessage="删除"
+          />,
           icon: 'delete',
           onClick: () => this.handleDelete(record),
-          confirmText: '确认删除？'
+          disabled: record.status === 'ok',
+          confirmText: <div>
+            <FormattedMessage
+              id="app.common.delete"
+              defaultMessage="删除"
+            />?
+          </div>
         },
         {
           isDivider: true
         },
         {
-          text: '检查数据线',
+          text: <FormattedMessage
+            id="app.components.resourceManage.dataTable.checkDataLine"
+            defaultMessage="检查数据线"
+          />,
           icon: 'check-circle-o',
           onClick: () => onCheckDataLine(record)
         },
@@ -299,10 +383,28 @@ export default class DataTableManageGrid extends Component {
       return (
         <div>
           <OperatingButton icon="setting" onClick={() => this.handleRule(record)}>
-            <FormattedMessage id="app.common.configRule" defaultMessage="规则配置" />
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.configRule"
+              defaultMessage="规则配置"
+            />
           </OperatingButton>
           <OperatingButton icon="fork" onClick={() => onMount(record)}>
-            <FormattedMessage id="app.common.mountProject" defaultMessage="已挂载项目" />
+            <FormattedMessage
+              id="app.components.resourceManage.dataSource.viewMountProject"
+              defaultMessage="查看已挂载项目"
+            />
+          </OperatingButton>
+          <OperatingButton icon="cloud-upload-o" onClick={() => onOpenRuleImportModal(record)}>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.importRules"
+              defaultMessage="导入规则"
+            />
+          </OperatingButton>
+          <OperatingButton icon="cloud-download-o" onClick={() => onHandleDownload(record)}>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.exportRules"
+              defaultMessage="导出规则"
+            />
           </OperatingButton>
           <OperatingButton icon="ellipsis" menus={menus} />
         </div>
@@ -316,7 +418,9 @@ export default class DataTableManageGrid extends Component {
       api: updateApi,
       data: {
         id: record.id,
-        verChangeNoticeFlg: 0
+        verChangeNoticeFlg: 0,
+        verChangeHistory: '',
+        createTime: record.createTime
       },
       method: 'post'
     })
@@ -361,6 +465,29 @@ export default class DataTableManageGrid extends Component {
       },
       method: 'post'
     })
+    if (record.dsType === 'mysql') {
+      this.handleReloadExtractor(record)
+    }
+  }
+
+  handleReloadExtractor = record => {
+    const {onSendControlMessage} = this.props
+    const date = new Date()
+    const json = {
+      from: 'dbus-web',
+      id: date.getTime(),
+      payload: {
+        dsName: record.dsName,
+        dsType: record.dsType
+      },
+      timestamp: dateFormat(date, 'yyyy-mm-dd HH:MM:ss.l'),
+      type: 'EXTRACTOR_RELOAD_CONF'
+    }
+    const data = {
+      topic: record.ctrlTopic,
+      message: JSON.stringify(json)
+    }
+    onSendControlMessage(data)
   }
 
   handleStop = record => {
@@ -438,7 +565,7 @@ export default class DataTableManageGrid extends Component {
         title: (
           <FormattedMessage
             id="app.components.resourceManage.dataTableNameAlias"
-            defaultMessage="表别名"
+            defaultMessage="模板表"
           />
         ),
         width: this.tableWidth[2],
