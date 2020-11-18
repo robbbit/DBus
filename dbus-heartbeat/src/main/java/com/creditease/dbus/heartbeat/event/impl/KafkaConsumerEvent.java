@@ -2,7 +2,7 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,14 @@
  * >>
  */
 
+
 package com.creditease.dbus.heartbeat.event.impl;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.creditease.dbus.commons.StatMessage;
@@ -34,9 +36,12 @@ import com.creditease.dbus.heartbeat.container.KafkaConsumerContainer;
 import com.creditease.dbus.heartbeat.event.AbstractEvent;
 import com.creditease.dbus.heartbeat.log.LoggerFactory;
 import com.creditease.dbus.heartbeat.util.JsonUtil;
+import com.creditease.dbus.heartbeat.util.KafkaUtil;
 import com.creditease.dbus.heartbeat.vo.PacketVo;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -63,6 +68,8 @@ public class KafkaConsumerEvent extends AbstractEvent {
 
     protected List<TopicPartition> assignTopics = null;
 
+    private Map<String, Set<String>> map;
+
     private Long startTime;
 
     private void updateZkInfoCache(String key, PacketVo packet) {
@@ -86,12 +93,21 @@ public class KafkaConsumerEvent extends AbstractEvent {
         zkInfoCache.clear();
     }
 
+    public KafkaConsumerEvent(String topic, Map<String, Set<String>> map) {
+        this(topic);
+        this.map = map;
+    }
+
     public KafkaConsumerEvent(String topic) {
         super(0l);
         this.topic = topic;
         Properties props = HeartBeatConfigContainer.getInstance().getKafkaConsumerConfig();
         Properties producerProps = HeartBeatConfigContainer.getInstance().getKafkaProducerConfig();
         try {
+            if (KafkaUtil.checkSecurity()) {
+                props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT");
+                producerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT");
+            }
 
             dataConsumer = new KafkaConsumer<>(props);
             assignTopics = new ArrayList<>();
@@ -197,23 +213,34 @@ public class KafkaConsumerEvent extends AbstractEvent {
                             schemaName = vals[3];
                             tableName = vals[4];
                             dsPartition = vals[6];
+
+                            /*String dsNameWk = HeartBeatConfigContainer.getInstance().getAliasMapping().get(dsName);
+                            if (StringUtils.isNotBlank(dsNameWk)) {
+                                if (map.containsKey(dsNameWk) && map.get(dsNameWk).contains(schemaName)) {
+                                    LOG.debug("hit alias mapping {}->{}", dsName, dsNameWk);
+                                    dsName = dsNameWk;
+                                }
+                            }*/
+
                             if (vals[0].equals("data_increment_data") ||
-                                vals[0].equals("data_initial_data") ||
-                                vals[0].equals("data_increment_termination")) {
+                                    vals[0].equals("data_initial_data") ||
+                                    vals[0].equals("data_increment_termination")) {
                                 //有数据来, table正常的情况
                                 // ojjTime
                                 //cpTime = Long.valueOf(vals[8]);
                                 isTableOK = false;
                             } else if (vals[0].equals("data_increment_heartbeat")) {
-                                if (StringUtils.equals("_unknown_table_", tableName) &&
-                                    (DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_LOGSTASH)) &&
-                                    (DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_LOGSTASH_JSON)) &&
-                                    (DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_UMS)) &&
-                                    (DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_FILEBEAT)) &&
-                                    (DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_FLUME))) {
+                                /*if (StringUtils.equals("_unknown_table_", tableName) &&
+                                        (DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_LOGSTASH) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_LOGSTASH_JSON) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_UMS) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_FILEBEAT) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_JSON) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_FLUME))) {
                                     isTableOK = false;
                                 } else {
                                     //新版  time|txTime|status
+                                    //新版 time|txTime|status|dsAlias
                                     if (StringUtils.contains(vals[8], "|")) {
                                         String times[] = StringUtils.split(vals[8], "|");
                                         cpTime = Long.valueOf(times[0]);
@@ -223,6 +250,38 @@ public class KafkaConsumerEvent extends AbstractEvent {
                                             //这种情况，只发送stat，不更新zk
                                             isTableOK = false;
                                         }
+                                        sendStatMsg(dsName, schemaName, tableName, cpTime, txTime, curTime, key, record.offset());
+                                    } else {
+                                        LOG.error("it should not be here. key:{}", key);
+                                    }
+                                }*/
+
+                                if (StringUtils.equals("_unknown_table_", tableName) &&
+                                        (DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_LOGSTASH) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_LOGSTASH_JSON) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_UMS) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_FILEBEAT) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_JSON) ||
+                                                DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_FLUME))) {
+                                    isTableOK = false;
+                                } else {
+                                    //新版  time|txTime|status
+                                    //新版 time|txTime|status|dsAlias
+                                    if (StringUtils.contains(vals[8], "|")) {
+                                        String times[] = StringUtils.split(vals[8], "|");
+                                        cpTime = Long.valueOf(times[0]);
+                                        txTime = Long.valueOf(times[1]);
+                                        if (times.length == 3 && times[2].equals("abort")) {
+                                            //表明 其实表已经abort了，但心跳数据仍然
+                                            //这种情况，只发送stat，不更新zk
+                                            isTableOK = false;
+                                        }
+
+                                        // 如果存在对应ds名称，说明原来用的是别名，则替换掉
+                                        if (ArrayUtils.getLength(times) == 4) {
+                                            dsName = times[3];
+                                        }
+
                                         sendStatMsg(dsName, schemaName, tableName, cpTime, txTime, curTime, key, record.offset());
                                     } else {
                                         LOG.error("it should not be here. key:{}", key);
@@ -237,17 +296,22 @@ public class KafkaConsumerEvent extends AbstractEvent {
                         if (isTableOK) {
                             //更新zk表状态时间
                             String path = HeartBeatConfigContainer.getInstance().getHbConf().getMonitorPath();
+                            if (DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.DB2)) {
+                                path = StringUtils.join(new String[]{path, dsName, StringUtils.upperCase(schemaName), tableName, dsPartition}, "/");
+                            } else {
                                 path = StringUtils.join(new String[]{path, dsName, schemaName, tableName, dsPartition}, "/");
+                            }
 
                             // 反序列化packet信息
                             PacketVo packet = deserialize(path, PacketVo.class);
                             if (packet == null &&
-                                    !(DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_LOGSTASH)) &&
-                                    !(DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_LOGSTASH_JSON)) &&
-                                    !(DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_UMS)) &&
+                                    !(DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_LOGSTASH)) &&
+                                    !(DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_LOGSTASH_JSON)) &&
+                                    !(DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_UMS)) &&
+                                    !(DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_JSON)) &&
                                     // !(DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.MONGO)) &&
-                                    !(DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_FILEBEAT)) &&
-                                    !(DbusDatasourceType.stringEqual(vals[1],DbusDatasourceType.LOG_FLUME))) {
+                                    !(DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_FILEBEAT)) &&
+                                    !(DbusDatasourceType.stringEqual(vals[1], DbusDatasourceType.LOG_FLUME))) {
                                 continue;
                             } else {
                                 packet = new PacketVo();

@@ -2,14 +2,14 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -17,6 +17,7 @@
  * limitations under the License.
  * >>
  */
+
 
 package com.creditease.dbus.controller;
 
@@ -27,7 +28,7 @@ import com.creditease.dbus.bean.ExecuteSqlBean;
 import com.creditease.dbus.constant.MessageCode;
 import com.creditease.dbus.domain.model.DataTable;
 import com.creditease.dbus.service.TableService;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -355,6 +356,12 @@ public class TableController extends BaseController {
         return tableService.findTablesToAdd(URLDecoder.decode(request.getQueryString(), "UTF-8"));
     }
 
+    /**
+     * 获取dbus环境所有的namespace
+     *
+     * @return
+     * @throws Exception
+     */
     @GetMapping("/riderSearch")
     public ResultEntity riderSearch() throws Exception {
         try {
@@ -425,6 +432,25 @@ public class TableController extends BaseController {
         }
     }
 
+    /**
+     * 批量删除table
+     *
+     * @param
+     */
+    @PostMapping(path = "/batchDeleteTableByTableIds")
+    public ResultEntity batchDeleteTableByTableIds(@RequestBody ArrayList<Integer> tableIds) {
+        try {
+            ResultEntity resultEntity = tableService.batchDeleteTableByTableIds(tableIds);
+            if (StringUtils.isBlank(resultEntity.getMessage())) {
+                return resultEntityBuilder().status(resultEntity.getStatus()).build();
+            }
+            return resultEntityBuilder().build();
+        } catch (Exception e) {
+            logger.error("Exception encountered while request batchDeleteTableByTableIds.", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
     @PostMapping("/importRulesByTableId/{tableId}")
     public ResultEntity importRulesByTableId(@PathVariable Integer tableId,
                                              @RequestParam MultipartFile uploadFile) {
@@ -436,13 +462,44 @@ public class TableController extends BaseController {
         }
     }
 
-	@GetMapping("/exportRulesByTableId/{tableId}")
-	public void exportRulesByTableId(@PathVariable Integer tableId, HttpServletResponse response) {
-		try {
-			tableService.exportRulesByTableId(tableId, response);
-		} catch (Exception e) {
-			logger.error("Exception encountered while request exportRulesByTableId.", e);
-		}
-	}
+    @GetMapping("/exportRulesByTableId/{tableId}")
+    public void exportRulesByTableId(@PathVariable Integer tableId, HttpServletResponse response) {
+        try {
+            tableService.exportRulesByTableId(tableId, response);
+        } catch (Exception e) {
+            logger.error("Exception encountered while request exportRulesByTableId.", e);
+        }
+    }
+
+    @GetMapping("/reInitTableMeta/{tableId}")
+    public ResultEntity reInitTableMeta(@PathVariable Integer tableId) {
+        try {
+            return tableService.reInitTableMeta(tableId);
+        } catch (Exception e) {
+            logger.error("Exception encountered while request reInitTableMeta.", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+
+    @GetMapping("/getTableRows/{tableId}")
+    public ResultEntity getTableRows(@PathVariable Integer tableId) {
+        try {
+            return resultEntityBuilder().payload(tableService.getTableRows(tableId)).build();
+        } catch (Exception e) {
+            logger.error("Exception encountered while request getTableRows.", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+    @PostMapping("/moveSourceTables")
+    public ResultEntity moveSourceTables(@RequestBody Map<String, Object> param) {
+        try {
+            return tableService.moveSourceTables(param);
+        } catch (Exception e) {
+            logger.error("Exception encountered while request moveSourceTables.", e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
 
 }

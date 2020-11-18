@@ -17,9 +17,6 @@ export LoginCanvas from './Login/LoginCanvas'
 // 注册
 export RegisterForm from './Register/RegisterForm'
 
-// 初始化
-export InitializationForm from './Initialization/InitializationForm'
-
 // 项目管理-项目列表
 export ProjectHome from './ProjectManage/ProjectHome'
 export ProjectSummary from './ProjectManage/ProjectSummary'
@@ -37,6 +34,7 @@ export ProjectTableStartModal from './ProjectManage/ProjectTable/ProjectTableSta
 export ProjectTableInitialLoadModal from './ProjectManage/ProjectTable/ProjectTableInitialLoadModal'
 export ProjectTableKafkaReaderModal from './ProjectManage/ProjectTable/ProjectTableKafkaReaderModal'
 export ProjectTableBatchFullPullModal from './ProjectManage/ProjectTable/ProjectTableBatchFullPullModal'
+export ProjectTableMoveTopoTableModal from './ProjectManage/ProjectTable/ProjectTableMoveTopoTableModal'
 
 // 项目管理-Topology
 export ProjectTopologyGrid from './ProjectManage/ProjectTopology/ProjectTopologyGrid'
@@ -52,9 +50,27 @@ export ProjectFullpullSearch from './ProjectManage/ProjectFullpull/ProjectFullpu
 export ProjectFullpullModifyModal from './ProjectManage/ProjectFullpull/ProjectFullpullModifyModal'
 
 // Sink管理
-export SinkManageGrid from './SinkManage/SinkManageGrid'
-export SinkManageSearch from './SinkManage/SinkManageSearch'
-export SinkForm from './SinkManage/SinkForm'
+export SinkManageGrid from './SinkManage/SinkList/SinkManageGrid'
+export SinkManageSearch from './SinkManage/SinkList/SinkManageSearch'
+export SinkForm from './SinkManage/SinkList/SinkForm'
+
+// Sinker管理
+export SinkerTopologyForm from './SinkManage/SinkerTopology/SinkerTopologyForm'
+export SinkerTopologyManageGrid from './SinkManage/SinkerTopology/SinkerTopologyManageGrid'
+export SinkerTopologyManageSearch from './SinkManage/SinkerTopology/SinkerTopologyManageSearch'
+export SinkerTopologyRerunModal from './SinkManage/SinkerTopology/SinkerTopologyRerunModal'
+export SinkerTopologyAddSchemaModal from './SinkManage/SinkerTopology/SinkerTopologyAddSchemaModal'
+
+// SinkerSchema管理
+export SinkerSchemaGrid from './SinkManage/SinkerSchema/SinkerSchemaGrid'
+export SinkerSchemaSearch from './SinkManage/SinkerSchema/SinkerSchemaSearch'
+export SinkerSchemaForm from './SinkManage/SinkerSchema/SinkerSchemaForm'
+export SinkerSchemaAddTableModal from './SinkManage/SinkerSchema/SinkerSchemaAddTableModal'
+
+// SinkerTable管理
+export SinkerTableGrid from './SinkManage/SinkerTable/SinkerTableGrid'
+export SinkerTableSearch from './SinkManage/SinkerTable/SinkerTableSearch'
+export SinkerTableForm from './SinkManage/SinkerTable/SinkerTableForm'
 
 // 用户管理
 export UserManageGrid from './UserManage/UserManageGrid'
@@ -66,6 +82,7 @@ export UserProject from './UserManage/UserProject'
 export JarManageSearch from './ResourceManage/JarManage/JarManageSearch'
 export JarManageGrid from './ResourceManage/JarManage/JarManageGrid'
 export JarManageUploadModal from './ResourceManage/JarManage/JarManageUploadModal'
+export JarManageModifyModal from './ResourceManage/JarManage/JarManageModifyModal'
 
 // encode plugin管理
 export EncodePluginSearch from './ResourceManage/EncodePluginManage/EncodePluginSearch'
@@ -84,14 +101,18 @@ export UserKeyDownloadSearch from './ResourceManage/UserKeyDownloadManage/UserKe
 export DataSourceManageSearch from './ResourceManage/DataSourceManage/DataSourceManageSearch'
 export DataSourceManageGrid from './ResourceManage/DataSourceManage/DataSourceManageGrid'
 export DataSourceManageModifyModal from './ResourceManage/DataSourceManage/DataSourceManageModifyModal'
-export DataSourceManageTopologyModal from './ResourceManage/DataSourceManage/DataSourceManageTopologyModal/DataSourceManageTopologyModal'
-export DataSourceManageStartTopoModal from './ResourceManage/DataSourceManage/DataSourceManageTopologyModal/DataSourceManageStartTopoModal'
+export DataSourceManageTopologyModal
+  from './ResourceManage/DataSourceManage/DataSourceManageTopologyModal/DataSourceManageTopologyModal'
+export DataSourceManageStartTopoModal
+  from './ResourceManage/DataSourceManage/DataSourceManageTopologyModal/DataSourceManageStartTopoModal'
 export DataSourceManageMountModal from './ResourceManage/DataSourceManage/DataSourceManageMountModal'
 export DataSourceManageAddModal from './ResourceManage/DataSourceManage/DataSourceManageAddModal'
 export DataSourceManageCheckModal from './ResourceManage/DataSourceManage/DataSourceManageCheckModal'
 export DataSourceManageRerunModal from './ResourceManage/DataSourceManage/DataSourceManageRerunModal'
-export DataSourceManageBatchAddTableModal from './ResourceManage/DataSourceManage/DataSourceManageBatchAddTableModal'
-export DataSourceManagePreProcessModal from './ResourceManage/DataSourceManage/DataSourceManagePreProcessModal'
+export GenerateAddTableSqlModal from './ResourceManage/DataSourceManage/GenerateAddTableSqlModal'
+export OggConfModifyModal from './ResourceManage/DataSourceManage/OggConfModifyModal'
+export CanalConfModifyModal from './ResourceManage/DataSourceManage/CanalConfModifyModal'
+export SearchDatasourceExistModal from './ResourceManage/DataSourceManage/SearchDatasourceExistModal'
 
 // 数据源 添加
 export DataSourceCreateTabs from './ResourceManage/DataSourceCreate/DataSourceCreateTabs'
@@ -103,6 +124,7 @@ export DataSchemaManageModifyModal from './ResourceManage/DataSchemaManage/DataS
 export DataSchemaManageAddModal from './ResourceManage/DataSchemaManage/DataSchemaManageAddModal'
 export DataSchemaManageAddLogModal from './ResourceManage/DataSchemaManage/DataSchemaManageAddLogModal'
 export DataSchemaManageRerunModal from './ResourceManage/DataSchemaManage/DataSchemaManageRerunModal'
+export DataSchemaMoveModal from './ResourceManage/DataSchemaManage/DataSchemaMoveModal'
 
 // 数据源管理-data table
 export DataTableManageSearch from './ResourceManage/DataTableManage/DataTableManageSearch'
@@ -115,6 +137,7 @@ export DataTableManageSourceInsightModal from './ResourceManage/DataTableManage/
 export DataTableManageIndependentModal from './ResourceManage/DataTableManage/DataTableManageIndependentModal'
 export DataTableManageRerunModal from './ResourceManage/DataTableManage/DataTableManageRerunModal'
 export DataTableBatchFullPullModal from './ResourceManage/DataTableManage/DataTableBatchFullPullModal'
+export DataTableMoveModal from './ResourceManage/DataTableManage/DataTableMoveModal'
 
 // dbus data
 export DBusDataManageSearch from './ResourceManage/DBusDataManage/DBusDataManageSearch'
@@ -138,6 +161,10 @@ export ControlMessageZkModal from './toolSet/ControlMessage/ControlMessageZkModa
 
 // 自我检查
 export ClusterCheckForm from './SelfCheck/ClusterCheck/ClusterCheckForm'
+// canal检查
+export CanalCheckForm from './SelfCheck/CanalCheck/CanalCheckForm'
+// ogg检查
+export OggCheckForm from './SelfCheck/OggCheck/OggCheckForm'
 
 // 独立拉全量
 export GlobalFullpullForm from './toolSet/GlobalFullpull/GlobalFullpullForm'
@@ -149,6 +176,9 @@ export KafkaReaderForm from './toolSet/KafkaReader/KafkaReaderForm'
 export BathchRestatrTopoForm from './toolSet/BatchRestartTopo/BathchRestatrTopoForm'
 export BathchRestatrTopoSearch from './toolSet/BatchRestartTopo/BathchRestatrTopoSearch'
 export BathchRestatrTopoRestart from './toolSet/BatchRestartTopo/BathchRestatrTopoRestart'
+export OggCanalDeploySearch from './toolSet/OggCanalDeployInfo/OggCanalDeploySearch'
+export OggCanalDeployForm from './toolSet/OggCanalDeployInfo/OggCanalDeployForm'
+export OggCanalDeployModifyModal from './toolSet/OggCanalDeployInfo/OggCanalDeployModifyModal'
 
 // 规则组
 export RuleGroupSearch from './RuleManage/RuleGroup/RuleGroupSearch'
@@ -177,7 +207,3 @@ export HeartbeatConfigTabs from './ConfigManage/HeartbeatConfig/HeartbeatConfigT
 
 //mgr配置
 export DBusMgrConfigForm from './ConfigManage/DBusMgrConfig/DBusMgrConfigForm'
-
-//dba配置
-export DBAEncodeConfigSearch from './ConfigManage/DBAEncodeConfig/DBAEncodeConfigSearch'
-export DBAEncodeConfigGrid from './ConfigManage/DBAEncodeConfig/DBAEncodeConfigGrid'

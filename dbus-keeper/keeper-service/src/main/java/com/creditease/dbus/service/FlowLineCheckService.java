@@ -2,14 +2,14 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,25 +18,17 @@
  * >>
  */
 
+
 package com.creditease.dbus.service;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.text.MessageFormat;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
 import com.alibaba.fastjson.JSON;
-import com.creditease.dbus.commons.*;
+import com.creditease.dbus.commons.Constants;
+import com.creditease.dbus.commons.IZkService;
 import com.creditease.dbus.constant.KeeperConstants;
 import com.creditease.dbus.domain.mapper.DataTableMapper;
 import com.creditease.dbus.util.DBUtils;
 import com.creditease.dbus.util.DateUtil;
-
+import com.creditease.dbus.utils.SecurityConfProvider;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -48,6 +40,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.text.MessageFormat;
+import java.util.*;
 
 import static com.creditease.dbus.constant.KeeperConstants.GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS;
 
@@ -82,7 +80,6 @@ public class FlowLineCheckService {
             long offsetSecond = (Long) listSecond.get(1);
 
             List<Object> listThird = initConsumer((String) infoMap.get("src_topic"), "third");
-//            List<Object> listThird = initConsumer((String) infoMap.get("topic") + ".dbus", "third");
             consumerThird = (KafkaConsumer<String, byte[]>) listThird.get(0);
             long offsetThird = (Long) listThird.get(1);
 
@@ -233,7 +230,7 @@ public class FlowLineCheckService {
 
         try {
             long start = System.currentTimeMillis();
-            while ((System.currentTimeMillis() - start < 1000 * 15) && !isOk) {
+            while ((System.currentTimeMillis() - start < 1000 * 20) && !isOk) {
                 ConsumerRecords<String, byte[]> records = consumerSecond.poll(1000);
                 for (ConsumerRecord<String, byte[]> record : records) {
                     if (record.offset() >= offset) {
@@ -253,7 +250,7 @@ public class FlowLineCheckService {
         boolean isOk = false;
         try {
             long start = System.currentTimeMillis();
-            while ((System.currentTimeMillis() - start < 1000 * 15) && !isOk) {
+            while ((System.currentTimeMillis() - start < 1000 * 20) && !isOk) {
                 ConsumerRecords<String, byte[]> records = consumerThird.poll(1000);
                 for (ConsumerRecord<String, byte[]> record : records) {
                     //if (StringUtils.contains(record.key(), String.valueOf(time))) {
@@ -274,7 +271,7 @@ public class FlowLineCheckService {
         boolean isOk = false;
         try {
             long start = System.currentTimeMillis();
-            while ((System.currentTimeMillis() - start < 1000 * 15) && !isOk) {
+            while ((System.currentTimeMillis() - start < 1000 * 20) && !isOk) {
                 ConsumerRecords<String, byte[]> records = consumerFourth.poll(1000);
                 for (ConsumerRecord<String, byte[]> record : records) {
                     if (StringUtils.contains(record.key(), String.valueOf(time))) {
@@ -294,6 +291,9 @@ public class FlowLineCheckService {
         Properties props = zkService.getProperties(KeeperConstants.KEEPER_CONSUMER_CONF);
         Properties globalConf = zkService.getProperties(KeeperConstants.GLOBAL_CONF);
         props.setProperty(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS, globalConf.getProperty(GLOBAL_CONF_KEY_BOOTSTRAP_SERVERS));
+        if (StringUtils.equals(SecurityConfProvider.getSecurityConf(zkService), Constants.SECURITY_CONFIG_TRUE_VALUE)) {
+            props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT");
+        }
         return props;
     }
 

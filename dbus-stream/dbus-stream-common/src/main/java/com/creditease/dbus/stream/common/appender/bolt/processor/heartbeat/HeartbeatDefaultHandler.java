@@ -2,14 +2,14 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,21 +18,22 @@
  * >>
  */
 
+
 package com.creditease.dbus.stream.common.appender.bolt.processor.heartbeat;
 
 import avro.shaded.com.google.common.base.Joiner;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.creditease.dbus.stream.common.appender.bolt.processor.BoltCommandHandler;
-import com.creditease.dbus.stream.common.appender.bolt.processor.listener.HeartbeatHandlerListener;
-import com.creditease.dbus.stream.common.appender.bean.MetaVersion;
-import com.creditease.dbus.stream.common.appender.utils.Utils;
-import com.creditease.dbus.stream.common.Constants;
-import com.creditease.dbus.stream.common.appender.bean.EmitData;
-import com.creditease.dbus.stream.common.appender.utils.PairWrapper;
 import com.creditease.dbus.commons.DbusMessage;
 import com.creditease.dbus.commons.DbusMessageBuilder;
+import com.creditease.dbus.stream.common.Constants;
 import com.creditease.dbus.stream.common.appender.bean.DataTable;
+import com.creditease.dbus.stream.common.appender.bean.EmitData;
+import com.creditease.dbus.stream.common.appender.bean.MetaVersion;
+import com.creditease.dbus.stream.common.appender.bolt.processor.BoltCommandHandler;
+import com.creditease.dbus.stream.common.appender.bolt.processor.listener.HeartbeatHandlerListener;
+import com.creditease.dbus.stream.common.appender.utils.PairWrapper;
+import com.creditease.dbus.stream.common.appender.utils.Utils;
 import org.apache.storm.tuple.Tuple;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +63,7 @@ public class HeartbeatDefaultHandler implements BoltCommandHandler {
         MetaVersion ver = data.get(EmitData.VERSION);
         for (PairWrapper<String, Object> wrapper : wrapperList) {
             Object packet = wrapper.getPairValue("PACKET");
-            if(packet == null) {
+            if (packet == null) {
                 logger.warn("[appender-heartbeat] data error. wrapper:{}", JSON.toJSONString(wrapper));
                 continue;
             }
@@ -70,7 +71,7 @@ public class HeartbeatDefaultHandler implements BoltCommandHandler {
             String dbSchema = wrapper.getPairValue("SCHEMA_NAME").toString();
             String tableName = wrapper.getPairValue("TABLE_NAME").toString();
 
-            String pos = wrapper.getProperties(Constants.MessageBodyKey.POS).toString();
+            String pos = generateUmsId(wrapper.getProperties(Constants.MessageBodyKey.POS).toString());
 
             // oracle 数据格式：2017-03-24 14:28:00.995660，mysql格式：2017-03-24 14:28:00.995
             // 暂时不要统一
@@ -85,6 +86,10 @@ public class HeartbeatDefaultHandler implements BoltCommandHandler {
         }
     }
 
+    protected String generateUmsId(String pos) {
+        return pos;
+    }
+
     private DbusMessage message(DataTable table, MetaVersion ver, String pos, String opts) {
         DbusMessageBuilder builder = new DbusMessageBuilder();
         return builder.build(DbusMessage.ProtocolType.DATA_INCREMENT_HEARTBEAT, buildNs(table, ver), table.getBatchId())
@@ -94,7 +99,7 @@ public class HeartbeatDefaultHandler implements BoltCommandHandler {
 
     private String buildKey(String timeStr, DataTable table, MetaVersion ver) {
         return Utils.join(".", DbusMessage.ProtocolType.DATA_INCREMENT_HEARTBEAT.toString(),
-                buildNs(table, ver), timeStr + "|" + table.getStatus(), "wh_placeholder");
+                buildNs(table, ver), timeStr + "|" + table.getStatus() + "|" + Utils.getNameAliasMapping().getName(), "wh_placeholder");
     }
 
     private String buildNs(DataTable table, MetaVersion ver) {

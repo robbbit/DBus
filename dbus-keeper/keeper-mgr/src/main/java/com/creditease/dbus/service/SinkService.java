@@ -2,14 +2,14 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,11 +18,11 @@
  * >>
  */
 
+
 package com.creditease.dbus.service;
 
 import com.creditease.dbus.base.ResultEntity;
 import com.creditease.dbus.base.com.creditease.dbus.utils.RequestSender;
-import com.creditease.dbus.commons.IZkService;
 import com.creditease.dbus.constant.ServiceNames;
 import com.creditease.dbus.domain.model.Sink;
 import org.slf4j.Logger;
@@ -40,68 +40,63 @@ import java.net.Socket;
  */
 @Service
 public class SinkService {
-	@Autowired
-	private RequestSender sender;
+    @Autowired
+    private RequestSender sender;
 
-	@Autowired
-	private IZkService zkService;
+    protected Logger logger = LoggerFactory.getLogger(getClass());
 
-	protected Logger logger = LoggerFactory.getLogger(getClass());
+    public ResultEntity createSink(Sink sink) {
+        ResponseEntity<ResultEntity> result = sender.post(ServiceNames.KEEPER_SERVICE, "/sinks/create", sink);
+        return result.getBody();
+    }
 
-	private static final String MS_SERVICE = ServiceNames.KEEPER_SERVICE;
+    public ResultEntity updateSink(Sink sink) {
+        ResponseEntity<ResultEntity> result = sender.post(ServiceNames.KEEPER_SERVICE, "/sinks/update", sink);
+        return result.getBody();
+    }
 
-	public ResultEntity createSink(Sink sink) {
-		ResponseEntity<ResultEntity> result = sender.post(MS_SERVICE, "/sinks/create", sink);
-		return result.getBody();
-	}
+    public ResultEntity deleteSink(Integer id) {
+        ResponseEntity<ResultEntity> result = sender.get(ServiceNames.KEEPER_SERVICE, "/sinks/delete/{0}", id);
+        return result.getBody();
+    }
 
-	public ResultEntity updateSink(Sink sink) {
-		ResponseEntity<ResultEntity> result = sender.post(MS_SERVICE, "/sinks/update", sink);
-		return result.getBody();
-	}
+    public ResultEntity search(String queryString) {
+        ResponseEntity<ResultEntity> result = sender.get(ServiceNames.KEEPER_SERVICE, "/sinks/search", queryString);
+        return result.getBody();
+    }
 
-	public ResultEntity deleteSink(Integer id) {
-		ResponseEntity<ResultEntity> result = sender.get(MS_SERVICE, "/sinks/delete/{0}", id);
-		return result.getBody();
-	}
+    public boolean sinkTest(String url) {
+        String[] urls = url.split(",");
+        Socket socket = null;
+        try {
+            for (String s : urls) {
+                socket = new Socket();
+                String[] ipPort = s.split(":");
+                if (ipPort == null || ipPort.length != 2) {
+                    return false;
+                }
+                socket.connect(new InetSocketAddress(ipPort[0], Integer.parseInt(ipPort[1])));
+                socket.close();
+            }
+            logger.info("sink连通性测试通过.{}", url);
+            return true;
+        } catch (IOException e) {
+            logger.error("sink连通性测试异常.==={};==={}", url, e.getMessage(), e);
+            return false;
+        } finally {
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                    logger.error(e.getMessage(), e);
+                }
+            }
+        }
+    }
 
-	public ResultEntity search(String queryString) {
-		ResponseEntity<ResultEntity> result = sender.get(MS_SERVICE, "/sinks/search", queryString);
-		return result.getBody();
-	}
+    public ResultEntity searchByUserProject(String queryString) {
+        ResponseEntity<ResultEntity> result = sender.get(ServiceNames.KEEPER_SERVICE, "/sinks/search-by-user-project", queryString);
+        return result.getBody();
+    }
 
-	public boolean sinkTest(String url) {
-		//dbus-kafka1.jishu.idc:9092,dbus-kafka2.jishu.idc:9092,dbus-kafka3.jishu.idc:9092
-		String[] urls = url.split(",");
-		Socket socket = null;
-		try {
-			for (String s : urls) {
-				socket = new Socket();
-				String[] ipPort = s.split(":");
-				if (ipPort == null || ipPort.length != 2) {
-					return false;
-				}
-				socket.connect(new InetSocketAddress(ipPort[0], Integer.parseInt(ipPort[1])));
-				socket.close();
-			}
-			logger.info("sink连通性测试通过.{}", url);
-			return true;
-		} catch (IOException e) {
-			logger.error("sink连通性测试异常.==={};==={}", url, e.getMessage(), e);
-			return false;
-		} finally {
-			if (socket != null) {
-				try {
-					socket.close();
-				} catch (IOException e) {
-					logger.error(e.getMessage(),e);
-				}
-			}
-		}
-	}
-
-	public ResultEntity searchByUserProject(String queryString) {
-		ResponseEntity<ResultEntity> result = sender.get(MS_SERVICE, "/sinks/search-by-user-project", queryString);
-		return result.getBody();
-	}
 }

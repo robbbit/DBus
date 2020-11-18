@@ -2,14 +2,14 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,13 +18,16 @@
  * >>
  */
 
+
 package com.creditease.dbus.stream.dispatcher.bout;
 
 import com.creditease.dbus.commons.Constants;
 import com.creditease.dbus.commons.ControlType;
 import com.creditease.dbus.commons.DBusConsumerRecord;
+import com.creditease.dbus.stream.common.Constants.StormConfigKey;
 import com.creditease.dbus.stream.common.DataSourceInfo;
 import com.creditease.dbus.stream.common.bean.DispatcherPackage;
+import com.creditease.dbus.stream.common.dispatcher.GlobalCache;
 import com.creditease.dbus.stream.common.tools.MessageProcessor;
 import com.creditease.dbus.stream.common.tools.TableStatMap;
 import com.creditease.dbus.stream.dispatcher.helper.DBHelper;
@@ -52,6 +55,7 @@ public class DispatcherBout extends BaseRichBolt {
     private String zkServers = null;
     private String topologyID = null;
     private String topologyRoot = null;
+    private String datasource = null;
 
     private DataSourceInfo dsInfo = null;
     private String statTopic = null;
@@ -85,20 +89,20 @@ public class DispatcherBout extends BaseRichBolt {
 
     /**
      * print log in logger
+     *
      * @param props
      */
     private void printSchemaProps(Properties props) {
         logger.info(String.format("All schemas and topics as:"));
 
-        Iterator it=props.entrySet().iterator();
-        while(it.hasNext()){
-            Map.Entry entry=(Map.Entry)it.next();
+        Iterator it = props.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry entry = (Map.Entry) it.next();
             logger.info(String.format("%s=%s", entry.getKey(), entry.getValue()));
         }
     }
 
     /**
-     *
      * @param reloadJson: reload control msg json
      */
     private void reloadConfig(String reloadJson) {
@@ -130,6 +134,10 @@ public class DispatcherBout extends BaseRichBolt {
 
             statTopic = zkHelper.getStatisticTopic();
             processor = getMessageProcessor(dsInfo, statTopic, statProps, statMap, schemaTopicProps);
+
+            // 全局缓存处理
+            GlobalCache.initialize(datasource, zkServers);
+            GlobalCache.setCache(GlobalCache.Const.DBUS_MANAGER_CONF, zkHelper.getDbusManagerConf());
         } catch (Exception ex) {
             logger.error("DispatcherBout reloadConfig():", ex);
             collector.reportError(ex);
@@ -144,7 +152,7 @@ public class DispatcherBout extends BaseRichBolt {
         }
     }
 
-    public MessageProcessor getMessageProcessor (DataSourceInfo dsInfo, String statTopic, Properties statProps, TableStatMap statMap, Properties schemaTopicProps) throws Exception {
+    public MessageProcessor getMessageProcessor(DataSourceInfo dsInfo, String statTopic, Properties statProps, TableStatMap statMap, Properties schemaTopicProps) throws Exception {
         if (dsInfo.getDbSourceType().equals("oracle")) {
 
             Class clazz = Class.forName("com.creditease.dbus.stream.oracle.dispatcher.OracleMessageProcessor");
@@ -177,14 +185,14 @@ public class DispatcherBout extends BaseRichBolt {
         zkServers = (String) stormConf.get(Constants.ZOOKEEPER_SERVERS);
         topologyID = (String) stormConf.get(Constants.TOPOLOGY_ID);
         topologyRoot = Constants.TOPOLOGY_ROOT + "/" + topologyID;
+        this.datasource = (String) conf.get(StormConfigKey.DATASOURCE);
 
         reloadConfig(null);
         logger.info("DispatcherBolt reload config success !");
     }
 
 
-
-    private void processControlCommand(DBusConsumerRecord<String, byte[]>  record, Tuple input) {
+    private void processControlCommand(DBusConsumerRecord<String, byte[]> record, Tuple input) {
         try {
             String key = record.key();
             String json = new String(record.value(), "utf-8");
@@ -271,7 +279,7 @@ public class DispatcherBout extends BaseRichBolt {
 
         } catch (Exception ex) {
             // Print something in the log
-            logger.error(String.format("FAIL! Dispatcher bolt fails at offset (%s).", currentOffset.toString()),ex);
+            logger.error(String.format("FAIL! Dispatcher bolt fails at offset (%s).", currentOffset.toString()), ex);
             // Call fail
             this.collector.fail(input);
 
@@ -287,8 +295,8 @@ public class DispatcherBout extends BaseRichBolt {
                 processor.cleanup();
                 processor = null;
             }
-        }
-        catch (Exception ex) {
+            GlobalCache.refreshCache();
+        } catch (Exception ex) {
             // NOTE: Handle the failure
             logger.error("DispatcherBout cleanup():", ex);
             collector.reportError(ex);

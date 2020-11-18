@@ -1,6 +1,28 @@
+/*-
+ * <<
+ * DBus
+ * ==
+ * Copyright (C) 2016 - 2019 Bridata
+ * ==
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * >>
+ */
+
+
 package com.creditease.dbus.canal.utils;
 
 import com.creditease.dbus.canal.bean.DeployPropsBean;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.util.LinkedList;
@@ -23,9 +45,8 @@ public class FileUtils {
     }
 
     public static DeployPropsBean readProps(String path) throws Exception {
-        try {
+        try (InputStream ins = new BufferedInputStream(new FileInputStream(path))) {
             Properties deployProps = new Properties();
-            InputStream ins = new BufferedInputStream(new FileInputStream(path));
             deployProps.load(ins);
             DeployPropsBean props = new DeployPropsBean();
             props.setDsName(deployProps.getProperty("dsname").trim());
@@ -33,9 +54,28 @@ public class FileUtils {
             props.setSlavePath(deployProps.getProperty("canal.address").trim());
             props.setCanalUser(deployProps.getProperty("canal.user").trim());
             props.setCanalPwd(deployProps.getProperty("canal.pwd").trim());
+            String slaveId = deployProps.getProperty("canal.slaveId");
+            slaveId = StringUtils.isBlank(slaveId) ? "1234" : slaveId;
+            props.setCanalSlaveId(slaveId.trim());
+            String bootstrapServers = deployProps.getProperty("bootstrap.servers");
+            props.setBootstrapServers(bootstrapServers);
 
             ins.close();
             return props;
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+
+    public static String getValueFromFile(String path, String key) throws Exception {
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.matches(key + "\\s*=.*")) {
+                    return StringUtils.trim(StringUtils.split(line, "=")[1]);
+                }
+            }
+            return null;
         } catch (Exception e) {
             throw e;
         }

@@ -2,7 +2,7 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,26 +18,26 @@
  * >>
  */
 
+
 package com.creditease.dbus.router.bolt;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
-import java.util.Set;
 
 import com.alibaba.fastjson.JSONObject;
 import com.creditease.dbus.commons.Constants;
 import com.creditease.dbus.commons.ControlType;
-import com.creditease.dbus.commons.PropertiesUtils;
+import com.creditease.dbus.commons.Pair;
 import com.creditease.dbus.router.base.DBusRouterBase;
 import com.creditease.dbus.router.bean.EmitWarp;
 import com.creditease.dbus.router.bean.Sink;
+import com.creditease.dbus.router.bolt.manager.KafkaProducerManager;
 import com.creditease.dbus.router.util.DBusRouterConstants;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -63,7 +63,8 @@ public class DBusRouterKafkaWriteBolt extends BaseRichBolt {
     private Map<String, String> topicMap = new HashMap<>();
     private Map<String, String> sinksMap = new HashMap<>();
     private Properties kafkaProducerConf = null;
-    private Map<String, KafkaProducer<String, byte[]>> producerMap = new HashMap<>();
+    // private Map<String, KafkaProducer<String, byte[]>> producerMap = new HashMap<>();
+    private KafkaProducerManager kafkaProducerManager = null;
 
     @Override
     public void prepare(Map conf, TopologyContext context, OutputCollector collector) {
@@ -86,19 +87,21 @@ public class DBusRouterKafkaWriteBolt extends BaseRichBolt {
             if (data.isCtrl()) {
                 String ctrl = (String) data.getData();
                 processCtrlMsg(ctrl);
+                logger.info("kafka write bolt ack {}", data.getOffset());
                 collector.ack(input);
             } else if (data.isStat()) {
                 String stat = (String) data.getData();
                 String topic = inner.routerConfProps.getProperty(DBusRouterConstants.STAT_TOPIC, "dbus_statistic");
                 String url = inner.routerConfProps.getProperty(DBusRouterConstants.STAT_URL);
-                sendKafka(data.getKey(), stat, url, topic, data.getNameSpace(), input);
+                sendKafka(data.getKey(), stat, url, topic, data.getNameSpace(), input, data.getOffset());
             } else if (data.isUMS() || data.isHB()) {
                 String ums = (String) data.getData();
-                String url = sinksMap.get(data.getNameSpace());
-                String topic = topicMap.get(data.getNameSpace());
-                sendKafka(data.getKey(), ums, url, topic, data.getNameSpace(), input);
+                String url = Optional.ofNullable(sinksMap.get(data.getNameSpace())).orElseGet(() -> sinksMap.get(data.getAliasNameSpace()));
+                String topic = Optional.ofNullable(topicMap.get(data.getNameSpace())).orElseGet(() -> topicMap.get(data.getAliasNameSpace()));
+                sendKafka(data.getKey(), ums, url, topic, data.getNameSpace(), input, data.getOffset());
             } else {
                 logger.warn("not support process type. emit warp key: {}", data.getKey());
+                logger.info("kafka write bolt ack {}", data.getOffset());
                 collector.ack(input);
             }
         } catch (Exception e) {
@@ -151,17 +154,17 @@ public class DBusRouterKafkaWriteBolt extends BaseRichBolt {
         destroy();
         inner.close(true);
         init();
-        inner.zkHelper.saveReloadStatus(ctrl, "DbusRouterKafkaWriteBolt-" + context.getThisTaskId() , true);
+        inner.zkHelper.saveReloadStatus(ctrl, "DbusRouterKafkaWriteBolt-" + context.getThisTaskId(), true);
         logger.info("kafka write bolt reload completed.");
     }
 
     private void effectTopology(JSONObject ctrl) throws Exception {
         inner.routerConfProps = inner.zkHelper.loadRouterConf();
-        String url = inner.routerConfProps.getProperty(DBusRouterConstants.STAT_URL);
+        /*String url = inner.routerConfProps.getProperty(DBusRouterConstants.STAT_URL);
         if (!producerMap.containsKey(url)) {
             String clientId = StringUtils.joinWith("-", kafkaProducerConf.getProperty("client.id"), String.valueOf(producerMap.size() + 1));
             producerMap.put(url, obtainKafkaProducer(url, clientId));
-        }
+        }*/
         JSONObject payload = ctrl.getJSONObject("payload");
         Integer projectTopologyId = payload.getInteger("projectTopoId");
         inner.dbHelper.toggleProjectTopologyStatus(projectTopologyId, DBusRouterConstants.PROJECT_TOPOLOGY_STATUS_START);
@@ -178,12 +181,13 @@ public class DBusRouterKafkaWriteBolt extends BaseRichBolt {
                 topicMap.remove(key);
                 topicMap.put(key, vo.getTopic());
                 sinksMap.remove(key);
-                String url = vo.getUrl();
-                sinksMap.put(key, url);
-                if (!producerMap.containsKey(url)) {
+                sinksMap.put(key, vo.getUrl());
+                kafkaProducerManager.close();
+                //String url = vo.getUrl();
+                /*if (!producerMap.containsKey(url)) {
                     String clientId = StringUtils.joinWith("-", kafkaProducerConf.getProperty("client.id"), String.valueOf(producerMap.size() + 1));
                     producerMap.put(url, obtainKafkaProducer(url, clientId));
-                }
+                }*/
                 if (isStart) {
                     String path = StringUtils.joinWith("/", Constants.HEARTBEAT_PROJECT_MONITOR, vo.getProjectName(), inner.topologyId, key);
                     inner.zkHelper.createNode(path);
@@ -229,21 +233,28 @@ public class DBusRouterKafkaWriteBolt extends BaseRichBolt {
         logger.info("kafka write bolt rerun topology completed.");
     }
 
-    private void sendKafka(String key, String data, String url, String topic, String ns, Tuple input) {
+    private void sendKafka(String key, String data, String url, String topic, String ns, Tuple input, long offset) {
         if (StringUtils.isBlank(topic)) {
             logger.warn("namespace: {}, not obtain topic. ums: {}", ns, data);
+            logger.info("kafka write bolt fail {}, topic {}", offset, topic);
             collector.fail(input);
             return;
         }
-        KafkaProducer<String, byte[]> producer = producerMap.get(url);
+        // KafkaProducer<String, byte[]> producer = producerMap.get(url);
+        Pair<String, KafkaProducer> pair = kafkaProducerManager.getKafkaClient(url);
+        KafkaProducer<String, byte[]> producer = pair.getValue();
         if (producer != null) {
             producer.send(new ProducerRecord<String, byte[]>(topic, key, data.getBytes()), new Callback() {
                 @Override
                 public void onCompletion(RecordMetadata metadata, Exception exception) {
-                    if (exception == null)
+                    if (exception == null) {
+                        logger.info("kafka write bolt ack {}, topic {}, offset {}", offset, metadata.topic(), metadata.offset());
                         collector.ack(input);
-                    else
+                    } else {
+                        logger.error("kafka write bolt fail {}, topic {}", offset, metadata.topic());
+                        logger.error("kafka write bolt fail {}", exception.getMessage());
                         collector.fail(input);
+                    }
                 }
             });
         } else {
@@ -255,45 +266,51 @@ public class DBusRouterKafkaWriteBolt extends BaseRichBolt {
     private void destroy() {
         topicMap.clear();
         sinksMap.clear();
-        for (Map.Entry<String, KafkaProducer<String, byte[]>> entry : producerMap.entrySet()) {
+        kafkaProducerManager.close();
+        /*for (Map.Entry<String, KafkaProducer<String, byte[]>> entry : producerMap.entrySet()) {
             KafkaProducer<String, byte[]> producer = entry.getValue();
             if (producer != null) producer.close();
         }
-        producerMap.clear();
+        producerMap.clear();*/
     }
 
     private void init() throws Exception {
         inner.init();
         kafkaProducerConf = inner.zkHelper.loadKafkaProducerConf();
+        // 初始化kafka producer 管理器
+        kafkaProducerManager = new KafkaProducerManager(kafkaProducerConf, inner.zkHelper.getSecurityConf());
+
         List<Sink> sinkVos = inner.dbHelper.loadSinks(inner.topologyId);
         if (sinkVos != null && sinkVos.size() > 0) {
-            Set<String> urls = new HashSet<>();
+            //Set<String> urls = new HashSet<>();
             for (Sink vo : sinkVos) {
                 String key = StringUtils.joinWith(".", vo.getDsName(), vo.getSchemaName(), vo.getTableName());
                 topicMap.put(key, vo.getTopic());
                 sinksMap.put(key, vo.getUrl());
-                urls.add(vo.getUrl());
+                //urls.add(vo.getUrl());
                 String path = StringUtils.joinWith("/", Constants.HEARTBEAT_PROJECT_MONITOR, vo.getProjectName(), inner.topologyId, key);
                 inner.zkHelper.createNode(path);
             }
-            urls.add(inner.routerConfProps.getProperty(DBusRouterConstants.STAT_URL));
-            int idx = 0;
+            //urls.add(inner.routerConfProps.getProperty(DBusRouterConstants.STAT_URL));
+            /*int idx = 0;
             for (String url : urls) {
                 String clientId = StringUtils.joinWith("-", kafkaProducerConf.getProperty("client.id"), String.valueOf(idx++));
                 producerMap.put(url, obtainKafkaProducer(url, clientId));
-            }
+            }*/
         } else {
             logger.warn("{} sink is empty.", inner.topologyId);
         }
     }
 
-    private KafkaProducer<String, byte[]> obtainKafkaProducer(String url, String clientId) {
+    /*private KafkaProducer<String, byte[]> obtainKafkaProducer(String url, String clientId) {
         KafkaProducer<String, byte[]> producer = null;
         try {
             Properties props = PropertiesUtils.copy(kafkaProducerConf);
             props.put("bootstrap.servers", url);
             props.put("client.id", clientId);
 
+            if (StringUtils.equals(inner.zkHelper.getSecurityConf(), Constants.SECURITY_CONFIG_TRUE_VALUE))
+                props.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_PLAINTEXT");
 
             producer = new KafkaProducer<>(props);
             logger.info("kafka write bolt create kafka producer. url:{}", url);
@@ -301,7 +318,7 @@ public class DBusRouterKafkaWriteBolt extends BaseRichBolt {
             logger.error("kafka write bolt create kafka producer error. url:{}", url);
         }
         return producer;
-    }
+    }*/
 
     private class DBusRouterKafkaWriteBoltInner extends DBusRouterBase {
         public DBusRouterKafkaWriteBoltInner(Map conf) {

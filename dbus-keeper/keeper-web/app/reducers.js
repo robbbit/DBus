@@ -1,56 +1,44 @@
-import { fromJS } from 'immutable'
-import { combineReducers } from 'redux-immutable'
-import { LOCATION_CHANGE } from 'react-router-redux'
+import {fromJS} from 'immutable'
+import {combineReducers} from 'redux-immutable'
+import {LOCATION_CHANGE} from 'react-router-redux'
 
 import globalReducer from 'containers/App/reducer'
 import languageProviderReducer from 'containers/LanguageProvider/reducer'
-
 // 导入reducer
-import { loginReducer } from 'containers/Login/redux'
-import {initializationReducer} from 'containers/Initialization/redux'
 import {
+  projectFullpullReducer,
   projectHomeReducer,
   projectResourceReducer,
-  projectTopologyReducer,
   projectSummaryReducer,
   projectTableReducer,
-  projectFullpullReducer
+  projectTopologyReducer
 } from 'containers/ProjectManage/redux'
 
-import { sinkHomeReducer } from 'containers/SinkManage/redux'
+import {sinkerSchemaReducer, sinkerTableReducer, sinkHomeReducer} from 'containers/SinkManage/redux'
 
-import { userManageReducer } from 'containers/UserManage/redux'
+import {userManageReducer} from 'containers/UserManage/redux'
 
 import {
-  EncodePluginManageReducer,
-  JarManageReducer,
-  DataSourceReducer,
   DataSchemaReducer,
+  DataSourceCreateReducer,
+  DataSourceReducer,
   DataTableReducer,
   DBusDataReducer,
   EncodeManagerReducer,
-  RuleGroupReducer,
-  DataSourceCreateReducer
+  EncodePluginManageReducer,
+  JarManageReducer,
+  RuleGroupReducer
 } from 'containers/ResourceManage/redux'
 
-import {
-  ControlMessageReducer,
-  GlobalFullpullReducer,
-  KafkaReaderReducer,
-  BatchRestartTopoReducer
-} from 'containers/toolSet/redux'
+import {ControlMessageReducer, GlobalFullpullReducer, KafkaReaderReducer} from 'containers/toolSet/redux'
 
-import {
-  ZKManageReducer,
-  GlobalConfigReducer,
-  DBAEncodeConfigReducer
-} from 'containers/ConfigManage/redux'
+import {GlobalConfigReducer, ZKManageReducer} from 'containers/ConfigManage/redux'
 
 const routeInitialState = fromJS({
   locationBeforeTransitions: null
 })
 
-function routeReducer (state = routeInitialState, action) {
+function routeReducer(state = routeInitialState, action) {
   switch (action.type) {
     /* istanbul ignore next */
     case LOCATION_CHANGE:
@@ -62,13 +50,11 @@ function routeReducer (state = routeInitialState, action) {
   }
 }
 
-export default function createReducer (asyncReducers) {
+export default function createReducer(asyncReducers) {
   return combineReducers({
     route: routeReducer,
     global: globalReducer,
     language: languageProviderReducer,
-    loginReducer,
-    initializationReducer,
     projectHomeReducer,
     projectResourceReducer,
     projectTopologyReducer,
@@ -76,6 +62,8 @@ export default function createReducer (asyncReducers) {
     projectTableReducer,
     projectFullpullReducer,
     sinkHomeReducer,
+    sinkerSchemaReducer,
+    sinkerTableReducer,
     userManageReducer,
     EncodePluginManageReducer,
     JarManageReducer,
@@ -91,7 +79,6 @@ export default function createReducer (asyncReducers) {
     KafkaReaderReducer,
     ZKManageReducer,
     GlobalConfigReducer,
-    DBAEncodeConfigReducer,
     ...asyncReducers
   })
 }

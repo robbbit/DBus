@@ -20,7 +20,7 @@ export default class DataSourceManageTopologyModal extends Component {
   constructor (props) {
     super(props)
     this.state = {
-      killWaitTime: 10,
+      killWaitTime: 5,
       startModalKey: 'startModalKey',
       startModalVisible: false,
       startModalDataSource: {},
@@ -252,7 +252,6 @@ export default class DataSourceManageTopologyModal extends Component {
     const record = list && list[0]
     let toposOfDs = record && record.toposOfDs
     toposOfDs = toposOfDs && Object.values(toposOfDs)
-
 
     const {topoJarStartApi} = this.props
     const {startModalKey, startModalVisible, startModalDataSource, startModalRecord} = this.state

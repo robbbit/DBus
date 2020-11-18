@@ -2,7 +2,7 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,21 +18,19 @@
  * >>
  */
 
+
 package com.creditease.dbus.controller;
 
+import com.alibaba.fastjson.JSON;
 import com.creditease.dbus.annotation.AdminPrivilege;
 import com.creditease.dbus.base.BaseController;
 import com.creditease.dbus.base.ResultEntity;
-import com.creditease.dbus.commons.IZkService;
-import com.creditease.dbus.constant.KeeperConstants;
 import com.creditease.dbus.constant.MessageCode;
 import com.creditease.dbus.domain.model.DataSource;
 import com.creditease.dbus.service.DataSourceService;
-import com.creditease.dbus.utils.StormToplogyOpHelper;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
-import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -51,8 +49,6 @@ public class DataSourceController extends BaseController {
 
     @Autowired
     private DataSourceService service;
-    @Autowired
-    private IZkService zkService;
 
     @ApiOperation(value = "search", notes = "搜索DataSource")
     @ApiImplicitParams({
@@ -75,6 +71,7 @@ public class DataSourceController extends BaseController {
     @PostMapping("")
     public ResultEntity addOne(@RequestBody DataSource newOne) {
         try {
+            logger.info("add datasource {}", JSON.toJSONString(newOne));
             //插入数据库
             ResultEntity resultEntity = service.insertOne(newOne);
             if (resultEntity.getStatus() != 0) {
@@ -83,6 +80,16 @@ public class DataSourceController extends BaseController {
             //自动部署ogg或者canal
             Integer dsId = resultEntity.getPayload(Integer.class);
             return resultEntityBuilder().status(service.autoAddOggCanalLine(newOne)).payload(dsId).build();
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+    @GetMapping("/autoAddOggCanalLine")
+    public ResultEntity autoAddOggCanalLine(@RequestParam String dsName, String canalUser, String canalPass) {
+        try {
+            return resultEntityBuilder().payload(service.autoAddOggCanalLine(dsName, canalUser, canalPass)).build();
         } catch (Exception e) {
             logger.error(e.getMessage(), e);
             return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
@@ -162,26 +169,11 @@ public class DataSourceController extends BaseController {
 
     @PostMapping("/kill/{topologyId}/{waitTime}")
     public ResultEntity killTopology(@PathVariable String topologyId, @PathVariable Integer waitTime) {
-        if (StringUtils.isBlank(topologyId)) {
-            return resultEntityBuilder().status(MessageCode.DATASOURCE_KILL_TOPO_NONE_TOPO_ID).build();
-        }
-
-        if (waitTime == null) {
-            waitTime = 10;
-        }
-
         try {
-            if (!StormToplogyOpHelper.inited) {
-                StormToplogyOpHelper.init(zkService);
-            }
-            String killResult = StormToplogyOpHelper.killTopology(topologyId, waitTime);
-            if (StringUtils.isNotBlank(killResult) && killResult.equals(StormToplogyOpHelper.OP_RESULT_SUCCESS)) {
-                return new ResultEntity(ResultEntity.SUCCESS, ResultEntity.OK);
-            } else {
-                return new ResultEntity(MessageCode.DATASOURCE_KILL_TOPO_FAILED, ResultEntity.FAILED);
-            }
+            int code = service.stopTopology(topologyId, waitTime);
+            return resultEntityBuilder().status(code).build();
         } catch (Exception e) {
-            logger.warn("Kill Storm Topology Failed!", e);
+            logger.warn("Stop StormService Topology Failed!", e);
             return resultEntityBuilder().status(MessageCode.DATASOURCE_KILL_TOPO_EXCEPTION).build();
         }
     }
@@ -191,12 +183,11 @@ public class DataSourceController extends BaseController {
         try {
             String dsName = map.get("dsName");
             String jarPath = map.get("jarPath");
-            String jarName = map.get("jarName");
             String topologyType = map.get("topologyType");
-            String opResult = service.startTopology(dsName, jarPath, jarName, topologyType);
+            String opResult = service.startTopology(dsName, jarPath, topologyType);
             return resultEntityBuilder().payload(opResult).build();
         } catch (Exception e) {
-            logger.warn("Start Storm Topology Failed!", e);
+            logger.warn("Start StormService Topology Failed!", e);
             return resultEntityBuilder().status(MessageCode.DATASOURCE_START_TOPO_FAILED).build();
         }
     }
@@ -230,6 +221,16 @@ public class DataSourceController extends BaseController {
             return resultEntityBuilder().status(result).build();
         } catch (Exception e) {
             logger.error("Exception encountered while rerun datasource ({})", dsName, e);
+            return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
+        }
+    }
+
+    @GetMapping("/initCanalFilter")
+    public ResultEntity initCanalFilter(Integer dsId, String dsName) {
+        try {
+            return resultEntityBuilder().status(service.initCanalFilter(dsId, dsName)).build();
+        } catch (Exception e) {
+            logger.error("Exception encountered while initCanalFilter ({})", dsId, e);
             return resultEntityBuilder().status(MessageCode.EXCEPTION).build();
         }
     }

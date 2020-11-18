@@ -1,26 +1,28 @@
-import React, { PropTypes, Component } from 'react'
-import { Tooltip, Form, Popconfirm, Select, Input, message,Table ,Tag } from 'antd'
-import { FormattedMessage } from 'react-intl'
+import React, {PropTypes, Component} from 'react'
+import {Tooltip, Form, Popconfirm, Select, Input, message, Table, Tag} from 'antd'
+import {FormattedMessage} from 'react-intl'
 import OperatingButton from '@/app/components/common/OperatingButton'
 
 // 导入样式
 import styles from './res/styles/index.less'
 import dateFormat from 'dateformat'
+
 const FormItem = Form.Item
 const Option = Select.Option
 
 
 export default class DataTableManageGrid extends Component {
-  constructor (props) {
+  constructor(props) {
     super(props)
-    this.state = {
-    }
+    this.state = {}
     this.tableWidth = [
-      '5%',
+      '4%',
       '16%',
-      '10%',
-      '10%',
       '8%',
+      '8%',
+      '13%',
+      '8%',
+      '6%',
       '10%',
       '10%',
       '200px'
@@ -72,7 +74,7 @@ export default class DataTableManageGrid extends Component {
     )
   }
 
-  renderStatus =(text, record, index) => {
+  renderStatus = (text, record, index) => {
     const {verChangeNoticeFlg} = record
     let color = '#fff'
     switch (text) {
@@ -125,10 +127,13 @@ export default class DataTableManageGrid extends Component {
    * @description option render
    */
   renderOperating = (text, record, index) => {
-    const {onRerun, onCheckDataLine,onOpenSourceInsightModal,onMount, onModify,onOpenZKModal,onOpenRuleImportModal,
-      onHandleDownload} = this.props
+    const {
+      onRerun, onCheckDataLine, onOpenSourceInsightModal, onMount, onModify, onOpenZKModal, onOpenRuleImportModal, onOpenNormalFullPullModal,
+      onHandleDownload
+    } = this.props
     const dsType = record.dsType
     const notLog = dsType === 'mysql' || dsType === 'oracle' || dsType === 'mongo'
+      || dsType === 'db2'
     let menus
     if (notLog) {
       menus = [
@@ -215,7 +220,7 @@ export default class DataTableManageGrid extends Component {
         {
           text: <FormattedMessage
             id="app.components.resourceManage.dataTable.sourceEncode"
-            defaultMessage="DBA脱敏"
+            defaultMessage="源端脱敏"
           />,
           icon: 'lock',
           onClick: () => this.handleEncode(record)
@@ -229,22 +234,8 @@ export default class DataTableManageGrid extends Component {
             defaultMessage="拖回重跑"
           />,
           icon: 'reload',
-          disabled: record.dsType !== 'db2',
-          onClick: () => onRerun(record),
-        },
-        {
-          text: <FormattedMessage
-            id="app.components.resourceManage.dataTable.originalFullpull"
-            defaultMessage="阻塞式拉全量"
-          />,
-          icon: 'export',
-          onClick: () => this.handleFullPull(record),
-          confirmText: <div>
-            <FormattedMessage
-              id="app.components.resourceManage.dataTable.originalFullpull"
-              defaultMessage="阻塞式拉全量"
-            />?
-          </div>
+          // disabled: record.dsType !== 'db2',
+          onClick: () => onRerun(record)
         },
         {
           text: <FormattedMessage
@@ -262,10 +253,25 @@ export default class DataTableManageGrid extends Component {
           icon: 'check-circle-o',
           onClick: () => onCheckDataLine(record)
         },
+        {
+          text: <FormattedMessage
+            id="app.components.resourceManage.dataTable.reInitTableMeta"
+            defaultMessage="更新表结构"
+          />,
+          icon: 'reload',
+          onClick: () => this.handleReInitTableMeta(record),
+          confirmText: <div>
+            <FormattedMessage
+              id="app.components.resourceManage.dataTable.reInitTableMeta"
+              defaultMessage="更新表结构"
+            />?
+          </div>
+        }
       ]
       return (
         <div>
-          <OperatingButton disabled={record.status === 'inactive'} icon="export" onClick={() => this.handleIndependentFullPull(record)}>
+          <OperatingButton disabled={record.status === 'inactive'} icon="export"
+                           onClick={() => this.handleIndependentFullPull(record)}>
             <FormattedMessage
               id="app.components.resourceManage.dataTable.independentFullPull"
               defaultMessage="独立拉全量"
@@ -283,7 +289,7 @@ export default class DataTableManageGrid extends Component {
               defaultMessage="查看已挂载项目"
             />
           </OperatingButton>
-          <OperatingButton icon="ellipsis" menus={menus} />
+          <OperatingButton icon="ellipsis" menus={menus}/>
         </div>
       )
     } else {
@@ -406,7 +412,7 @@ export default class DataTableManageGrid extends Component {
               defaultMessage="导出规则"
             />
           </OperatingButton>
-          <OperatingButton icon="ellipsis" menus={menus} />
+          <OperatingButton icon="ellipsis" menus={menus}/>
         </div>
       )
     }
@@ -441,16 +447,11 @@ export default class DataTableManageGrid extends Component {
     onOpenIndependentFullPullModal(record)
   }
 
-  handleFullPull = record => {
-    const {startApi, onRequest} = this.props
+  handleReInitTableMeta = record => {
+    const {reInitMeta, onRequest} = this.props
     onRequest({
-      api: `${startApi}/${record.id}`,
-      data: {
-        id: record.id,
-        version: record.version,
-        type: "load-data"
-      },
-      method: 'post'
+      api: `${reInitMeta}/${record.id}`,
+      method: 'get'
     })
   }
 
@@ -518,7 +519,7 @@ export default class DataTableManageGrid extends Component {
     })
   }
 
-  render () {
+  render() {
     const {
       dataTableList,
       onPagination,
@@ -526,8 +527,8 @@ export default class DataTableManageGrid extends Component {
       onSelectionChange,
       selectedRowKeys
     } = this.props
-    const { loading, loaded } = dataTableList
-    const { total, pageSize, pageNum, list } = dataTableList.result
+    const {loading, loaded} = dataTableList
+    const {total, pageSize, pageNum, list} = dataTableList.result
     const dataTable = dataTableList.result && dataTableList.result.list
     const columns = [
       {
@@ -556,33 +557,28 @@ export default class DataTableManageGrid extends Component {
             defaultMessage="表名正则"
           />
         ),
-        width: this.tableWidth[6],
+        width: this.tableWidth[2],
         dataIndex: 'physicalTableRegex',
         key: 'physicalTableRegex',
         render: this.renderComponent(this.renderNomal)
       },
+      // {
+      //   title: (
+      //     <FormattedMessage
+      //       id="app.components.resourceManage.dataTableNameAlias"
+      //       defaultMessage="模板表"
+      //     />
+      //   ),
+      //   width: this.tableWidth[3],
+      //   dataIndex: 'tableNameAlias',
+      //   key: 'tableNameAlias',
+      //   render: this.renderComponent(this.renderNomal)
+      // },
       {
-        title: (
-          <FormattedMessage
-            id="app.components.resourceManage.dataTableNameAlias"
-            defaultMessage="模板表"
-          />
-        ),
-        width: this.tableWidth[2],
-        dataIndex: 'tableNameAlias',
-        key: 'tableNameAlias',
-        render: this.renderComponent(this.renderNomal)
-      },
-      {
-        title: (
-          <FormattedMessage
-            id="app.common.description"
-            defaultMessage="描述"
-          />
-        ),
-        width: this.tableWidth[2],
-        dataIndex: 'description',
-        key: 'description',
+        title: '目标Topic',
+        width: this.tableWidth[4],
+        dataIndex: 'outputTopic',
+        key: 'outputTopic',
         render: this.renderComponent(this.renderNomal)
       },
       {
@@ -592,7 +588,7 @@ export default class DataTableManageGrid extends Component {
             defaultMessage="状态"
           />
         ),
-        width: this.tableWidth[3],
+        width: this.tableWidth[5],
         dataIndex: 'status',
         key: 'status',
         render: this.renderComponent(this.renderStatus)
@@ -604,7 +600,7 @@ export default class DataTableManageGrid extends Component {
             defaultMessage="版本"
           />
         ),
-        width: this.tableWidth[4],
+        width: this.tableWidth[6],
         dataIndex: 'version',
         key: 'version',
         render: this.renderComponent(this.renderVersion)
@@ -616,9 +612,21 @@ export default class DataTableManageGrid extends Component {
             defaultMessage="更新时间"
           />
         ),
-        width: this.tableWidth[5],
+        width: this.tableWidth[7],
         dataIndex: 'createTime',
         key: 'createTime',
+        render: this.renderComponent(this.renderNomal)
+      },
+      {
+        title: (
+          <FormattedMessage
+            id="app.common.description"
+            defaultMessage="描述"
+          />
+        ),
+        width: this.tableWidth[8],
+        dataIndex: 'description',
+        key: 'description',
         render: this.renderComponent(this.renderNomal)
       },
       {
@@ -628,7 +636,7 @@ export default class DataTableManageGrid extends Component {
             defaultMessage="操作"
           />
         ),
-        width: this.tableWidth[7],
+        width: this.tableWidth[9],
         key: 'operate',
         render: this.renderComponent(this.renderOperating)
       }
@@ -636,7 +644,7 @@ export default class DataTableManageGrid extends Component {
     const pagination = {
       showSizeChanger: true,
       showQuickJumper: true,
-      pageSizeOptions: ['10', '20', '50', '100'],
+      pageSizeOptions: ['10', '20', '50', '100', '500', '1000'],
       current: pageNum || 1,
       pageSize: pageSize || 10,
       total: total,
@@ -660,5 +668,4 @@ export default class DataTableManageGrid extends Component {
   }
 }
 
-DataTableManageGrid.propTypes = {
-}
+DataTableManageGrid.propTypes = {}

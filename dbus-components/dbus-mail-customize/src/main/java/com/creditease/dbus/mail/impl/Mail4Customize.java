@@ -2,7 +2,7 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,11 +18,14 @@
  * >>
  */
 
+
 package com.creditease.dbus.mail.impl;
 
-import java.io.InputStream;
-import java.util.Date;
-import java.util.Properties;
+import com.creditease.dbus.mail.IMail;
+import com.creditease.dbus.mail.Message;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.mail.MessagingException;
 import javax.mail.Session;
@@ -30,13 +33,9 @@ import javax.mail.Transport;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
-
-import com.creditease.dbus.mail.IMail;
-import com.creditease.dbus.mail.Message;
-
-import org.apache.commons.io.IOUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.io.InputStream;
+import java.util.Date;
+import java.util.Properties;
 
 /**
  * Created by Administrator on 2017/8/15.
@@ -83,6 +82,9 @@ public class Mail4Customize extends IMail {
             message.setFrom(msg.getFromAddress());
             message.setRecipients(javax.mail.Message.RecipientType.TO, msg.getAddress());
             message.setSubject(msg.getSubject());
+            //指定邮件优先级 1：紧急 3：普通 5：缓慢
+            String priority = msg.getPriority() == null ? "3" : msg.getPriority();
+            message.setHeader("X-Priority", priority);
 
             MimeMultipart mmp = new MimeMultipart();
             MimeBodyPart mbp = new MimeBodyPart();

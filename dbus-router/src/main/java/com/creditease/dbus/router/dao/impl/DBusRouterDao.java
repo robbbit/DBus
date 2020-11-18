@@ -2,7 +2,7 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
  * limitations under the License.
  * >>
  */
+
 
 package com.creditease.dbus.router.dao.impl;
 
@@ -53,7 +54,9 @@ public class DBusRouterDao implements IDBusRouterDao {
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT                                        ");
         sql.append("    DISTINCT                                  ");
-        sql.append("    tdd.`ds_name`,                            ");
+        sql.append("    IFNULL(map.`alias`, tdd.`ds_name`) ds_name, ");
+        sql.append("    tdd.`ds_name` origin_ds_name,             ");
+        sql.append("    map.`alias`,                              ");
         sql.append("    tdt.`schema_name`,                        ");
         sql.append("    tdt.`table_name`,                         ");
         sql.append("    tdt.`id`,                                 ");
@@ -62,7 +65,8 @@ public class DBusRouterDao implements IDBusRouterDao {
         sql.append("    `t_project_topo` tpt,                     ");
         sql.append("    `t_project_topo_table` tptt,              ");
         sql.append("    `t_data_tables` tdt,                      ");
-        sql.append("    `t_dbus_datasource` tdd                   ");
+        // sql.append("    `t_dbus_datasource` tdd                   ");
+        sql.append("    `t_dbus_datasource` tdd LEFT JOIN `t_name_alias_mapping` map ON tdd.`id` = map.`name_id` AND map.`type` = 2 ");
         sql.append("WHERE                                         ");
         sql.append("    tpt.`topo_name` = ? AND                   ");
         sql.append("    tpt.`project_id` = tptt.`project_id` AND  ");
@@ -99,6 +103,8 @@ public class DBusRouterDao implements IDBusRouterDao {
             while (rs.next()) {
                 Resources vo = new Resources();
                 vo.setDsName(rs.getString("ds_name"));
+                vo.setOriginDsName(rs.getString("origin_ds_name"));
+                vo.setAlias(rs.getString("alias"));
                 vo.setSchemaName(rs.getString("schema_name"));
                 vo.setTableName(rs.getString("table_name"));
                 vo.setTableId(rs.getLong("id"));
@@ -125,6 +131,7 @@ public class DBusRouterDao implements IDBusRouterDao {
         sql.append("    DISTINCT                                ");
         sql.append("    tp.`project_name`,                      ");
         sql.append("    tdd.`ds_name`,                          ");
+        // sql.append("    IFNULL(map.`alias`, tdd.`ds_name`) ds_name, ");
         sql.append("    tdt.`schema_name`,                      ");
         sql.append("    tdt.`table_name`,                       ");
         sql.append("    tptt.`output_topic`,                    ");
@@ -135,8 +142,9 @@ public class DBusRouterDao implements IDBusRouterDao {
         sql.append("    `t_project` tp,                         ");
         sql.append("    `t_project_topo_table` tptt,            ");
         sql.append("    `t_data_tables` tdt,                    ");
-        sql.append("    `t_dbus_datasource` tdd,                ");
-        sql.append("    `t_sink` ts                             ");
+        sql.append("    `t_sink` ts,                            ");
+        // sql.append("    `t_dbus_datasource` tdd,                ");
+        sql.append("    `t_dbus_datasource` tdd LEFT JOIN `t_name_alias_mapping` map ON tdd.`id` = map.`name_id` AND map.`type` = 2 ");
         sql.append("WHERE                                       ");
         sql.append("    tpt.`topo_name` = ? AND                 ");
         sql.append("    tpt.`project_id` = tp.`id` AND          ");

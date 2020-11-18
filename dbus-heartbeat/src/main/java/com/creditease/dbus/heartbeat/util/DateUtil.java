@@ -2,14 +2,14 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,15 +18,15 @@
  * >>
  */
 
+
 package com.creditease.dbus.heartbeat.util;
+
+import com.creditease.dbus.heartbeat.log.LoggerFactory;
+import org.apache.commons.lang.StringUtils;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-
-import com.creditease.dbus.heartbeat.log.LoggerFactory;
-
-import org.apache.commons.lang.StringUtils;
 
 public class DateUtil {
 
@@ -117,6 +117,24 @@ public class DateUtil {
         }
         if (sec != 0) {
             ret.append(sec + "秒");
+        }
+        return ret.toString();
+    }
+
+    public static String diffHours(long diff) {
+        long nh = 1000 * 60 * 60;
+        long nm = 1000 * 60;
+        // 计算差多少小时
+        long hour = diff / nh;
+        // 计算差多少分钟
+        long min = diff % nh / nm;
+
+        StringBuilder ret = new StringBuilder();
+        if (hour != 0) {
+            ret.append(hour + "小时");
+        }
+        if (min != 0) {
+            ret.append(min + "分钟");
         }
         return ret.toString();
     }

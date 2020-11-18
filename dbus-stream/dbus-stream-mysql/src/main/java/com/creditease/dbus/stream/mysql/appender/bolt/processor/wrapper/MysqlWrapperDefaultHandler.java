@@ -2,7 +2,7 @@
  * <<
  * DBus
  * ==
- * Copyright (C) 2016 - 2018 Bridata
+ * Copyright (C) 2016 - 2019 Bridata
  * ==
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,16 +27,19 @@ import com.creditease.dbus.commons.DataType;
 import com.creditease.dbus.commons.DbusMessage;
 import com.creditease.dbus.commons.DbusMessageBuilder;
 import com.creditease.dbus.commons.PropertiesHolder;
-import com.creditease.dbus.msgencoder.*;
+import com.creditease.dbus.msgencoder.EncodeColumnProvider;
+import com.creditease.dbus.msgencoder.PluggableMessageEncoder;
+import com.creditease.dbus.msgencoder.PluginManagerProvider;
+import com.creditease.dbus.msgencoder.UmsEncoder;
 import com.creditease.dbus.stream.common.Constants;
+import com.creditease.dbus.stream.common.appender.bean.DataTable;
+import com.creditease.dbus.stream.common.appender.bean.EmitData;
+import com.creditease.dbus.stream.common.appender.bean.MetaVersion;
 import com.creditease.dbus.stream.common.appender.bolt.processor.BoltCommandHandler;
 import com.creditease.dbus.stream.common.appender.bolt.processor.BoltCommandHandlerHelper;
 import com.creditease.dbus.stream.common.appender.bolt.processor.CachedEncodeColumnProvider;
 import com.creditease.dbus.stream.common.appender.bolt.processor.listener.CommandHandlerListener;
 import com.creditease.dbus.stream.common.appender.enums.Command;
-import com.creditease.dbus.stream.common.appender.bean.DataTable;
-import com.creditease.dbus.stream.common.appender.bean.EmitData;
-import com.creditease.dbus.stream.common.appender.bean.MetaVersion;
 import com.creditease.dbus.stream.common.appender.utils.Pair;
 import com.creditease.dbus.stream.common.appender.utils.PairWrapper;
 import com.creditease.dbus.stream.common.appender.utils.Utils;
@@ -54,6 +57,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.creditease.dbus.stream.common.Constants.ConfigureKey.MYSQL_UMS_WITH_TABLE_PARTITION;
 
 public class MysqlWrapperDefaultHandler implements BoltCommandHandler {
     private Logger logger = LoggerFactory.getLogger(getClass());
@@ -170,24 +175,24 @@ public class MysqlWrapperDefaultHandler implements BoltCommandHandler {
     private int addPayloadColumns(List<Object> payloads, List<Column> columns,
                                   PairWrapper<String, Object> wrapper, DbusMessageBuilder builder) throws Exception {
         int payloadSize = 0;
-        Map<String, Column> map = new HashMap<>();
-        for (Column column : columns) {
-            map.put(column.getName(), column);
-        }
+        //Map<String, Column> map = new HashMap<>();
+        //for (Column column : columns) {
+        //    map.put(column.getName(), column);
+        //}
         List<DbusMessage.Field> fields = builder.getMessage().getSchema().getFields();
 
         for (int i = builder.getUmsFixedFields(); i < fields.size(); i++) {
             DbusMessage.Field field = fields.get(i);
             // 这里避免，源端表中包含ums_id_/ums_ts_等字段
-            Column column = map.get(field.getName());
-            if (column != null && Support.isSupported(column)) {
-                Pair<String, Object> pair = wrapper.getPair(column.getName());
+            //Column column = map.get(field.getName());
+            //if (column != null && Support.isSupported(column)) {
+                Pair<String, Object> pair = wrapper.getPair(field.getName());
                 Object value = pair.getValue();
                 payloads.add(value);
                 if (value != null) {
                     payloadSize += value.toString().getBytes("utf-8").length;
                 }
-            }
+            //}
         }
         return payloadSize;
     }
@@ -197,9 +202,16 @@ public class MysqlWrapperDefaultHandler implements BoltCommandHandler {
      */
     private DbusMessageBuilder createBuilderWithSchema(MetaVersion version, MessageEntry msgEntry) {
         DbusMessageBuilder builder = new DbusMessageBuilder();
-        String namespace = builder.buildNameSpace(Utils.getDataSourceNamespace(),
-                msgEntry.getEntryHeader().getSchemaName(), msgEntry.getEntryHeader().getTableName(),
-                version.getVersion(), msgEntry.getEntryHeader().getPartitionTableName());
+        String namespace;
+        if (outputTablePartition()) {
+            namespace = builder.buildNameSpace(Utils.getDataSourceNamespace(),
+                    msgEntry.getEntryHeader().getSchemaName(), msgEntry.getEntryHeader().getTableName(),
+                    version.getVersion(), msgEntry.getEntryHeader().getPartitionTableName());
+        } else {
+            namespace = builder.buildNameSpace(Utils.getDataSourceNamespace(),
+                    msgEntry.getEntryHeader().getSchemaName(), msgEntry.getEntryHeader().getTableName(),
+                    version.getVersion());
+        }
         builder.build(DbusMessage.ProtocolType.DATA_INCREMENT_DATA, namespace, table.getBatchId());
         EventType eventType = msgEntry.getEntryHeader().getOperType();
         RowData rowData = msgEntry.getMsgColumn().getRowDataLst().get(0);
@@ -212,6 +224,11 @@ public class MysqlWrapperDefaultHandler implements BoltCommandHandler {
             }
         }
         return builder;
+    }
+
+    private boolean outputTablePartition() {
+        Integer outputFlag = PropertiesHolder.getIntegerValue(Constants.Properties.CONFIGURE, MYSQL_UMS_WITH_TABLE_PARTITION);
+        return outputFlag == null || outputFlag.equals(1);
     }
 
     private void emitMessage(DbusMessage message) {
@@ -235,6 +252,7 @@ public class MysqlWrapperDefaultHandler implements BoltCommandHandler {
     }
 
     public static void main(String[] args) {
+        //offsetOperator = new JsonNodeOperator(zk, Utils.join("/", Utils.buildZKTopologyPath(topologyId), Constants.ZKPath.SPOUT_KAFKA_CONSUMER_NEXTOFFSET));
         // String type = "int(10)";
         String type = "int";
         System.out.println(StringUtils.substringBefore(type, "("));

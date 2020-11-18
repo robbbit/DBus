@@ -62,7 +62,9 @@ DBUS主要由两大部分组成：贴源数据采集和多租户数据分发。�
 
 # 2. 管理员手册
 
-说明：DBUS提供了灵活的脱敏策略支持。但若无脱敏需求，本章节有关脱敏的部分可一律忽略，不影响使用。另，即便有脱敏需求，亦可数据线搭建起来跑通后，再行根据指南补充配置脱敏事宜。脱敏详细介绍参见：[脱敏配置介绍](#encode-intro)
+说明：DBUS提供了灵活的脱敏策略支持。但若无脱敏需求，本章节有关脱敏的部分可一律忽略，不影响使用。另，即便有脱敏需求，亦可数据线搭建起来跑通后，再行根据指南补充配置脱敏事宜。
+
+脱敏详细介绍参见：[脱敏配置介绍](#encode-intro)
 
 ## 2.1 贴源数据采集
 
@@ -127,6 +129,62 @@ Sink即数据输出目标端，现阶段一般为Kafka集群。Sink既可借用D
 ![resource](img/manual/proj_table.png)
 
 同一份“资源”可被同一个租户引用多次，但必须跑在不同的流（topology）上。同一张表在同一个流（topology）上只能出现一次。
+
+## 2.3 Sinker管理
+
+DBus sinker目前仅支持sinker到hdfs.
+
+### 2.3.1 模板配置hdfs地址
+
+使用sinker前需要先配置hdfs地址，我们提供两种配置方式:
+
+配置中心->zk管理: /DBus/ConfTemplates/Sinker/placeholder-sinker/hdfs-config.properties
+
+方式一：hdfs  url   
+
+方式二：配置core.site和hdfs.site资源uri
+
+这里还需要配置hdfs.root.path,默认是/datahub/hdfslog,可以不修改
+
+
+
+![](img\sinker\sinker-hdfs-conf.png)
+
+
+
+### 2.3.2 添加sinker
+
+![](img\sinker\add-sinker.png)
+
+
+
+### 2.3.3 添加sinker schema和表
+
+sinker目前支持根据schema和表进行订阅,所以需要先添加schema和表才能消费数据
+
+每一个schema对应kafka的一个topic,每一个表对应topic中的一种namespace
+
+![](img\sinker\add-schema.png)
+
+### 2.3.4 启动sinker
+
+sink管理->sinker管理->最右边点击启动即可
+
+### 2.3.5 常见问题
+
+- 如何查看数据
+
+  grafana查看,下图中蓝色的线就是sinker的监控:
+
+![](img\sinker\grafana-sinker.png)
+
+​	hdfs查看:
+
+hdfs目录举例:/datahub/dbus/oracle.xhxdb_sec.tcsvbs/lnstransferlist/0/0/0/data_increment_data/right/
+
+/datahub/dbus是上边配置的hdfs.root.path目录,数据源类型oracle,数据线名称 xhxdb_sec,数据库名称tcsvbs,表名称lnstransferlist,表版本号0,数据类型data_increment_data
+
+![](img\sinker\hdfs-sinker-data.png)
 
 # 3. 租户手册
 
@@ -285,9 +343,9 @@ DBUS生态里关于全量，有贴源拉全量、租户拉全量、独立拉全�
 
 ### 4.2.1 脱敏插件化机制及脱敏插件管理
 
-DBUS v0.5通过脱敏插件化机制让用户能灵活自定义脱敏策略，每个脱敏插件包可提供多种脱敏类型。
+DBUS 通过脱敏插件化机制让用户能灵活自定义脱敏策略，每个脱敏插件包可提供多种脱敏类型。
 
-DBus v0.5自带一个内置脱敏插件，提供了基本的替换、md5加密、带盐的加密等。所有项目均可使用。
+DBus 自带一个内置脱敏插件，提供了基本的替换、md5加密、带盐的加密等。所有项目均可使用。
 
 ![internal_encode](img/manual/internal_encode.png)
 
@@ -300,7 +358,7 @@ DBus v0.5自带一个内置脱敏插件，提供了基本的替换、md5加密�
 
 ### 4.2.2 脱敏逻辑应用
 
- DBUS v0.5根据可能的场景，提供了三个脱敏配置入口，也可理解为三个级别的脱敏：
+ DBUS 根据可能的场景，提供了三个脱敏配置入口，也可理解为三个级别的脱敏：
 
 - **系统级强制脱敏 :** 管理员在贴源数据采集这一级，统一配置的脱敏规则。是所有接入该表的项目都必须遵守的脱敏规则。这一级只能应用通用脱敏插件提供的脱敏逻辑。配置入口如下图所示（仅供管理员使用）：
   ![encode-sys](img/encode/encode-sys.png)
@@ -317,14 +375,12 @@ DBus v0.5自带一个内置脱敏插件，提供了基本的替换、md5加密�
 
 ## 4.3 关系型数据库拆片风格配置
 
-关系型数据库数据类型多种多样。当类型为char/varchar的列被作为分片列，里面存储的是普通字符串，或md5/uuid编码后的字符串，拉全量会遇到困难，因为分片的上下界不是列式数字那样的简单的比较了。对于这样的列，如不做特殊配置，dbus按片拉取的时候可能会出现长时间卡死，导致全量拉取topology重启。具体原因可参考：https://mp.weixin.qq.com/s?__biz=MzU4MTUwMTI4Mw==&mid=2247483749&idx=1&sn=e03d8c9a1e7db56c2615a8cebc289a73&chksm=fd47e969ca30607f5d42d0e5f5b227481526a56e0814ef6242d0046786bbac58241b01aa2d07&scene=0#rd
+关系型数据库数据类型多种多样。当类型为char/varchar的列被作为分片列，里面存储的是普通字符串，或md5/uuid编码后的字符串，拉全量会遇到困难，因为分片的上下界不是列式数字那样的简单的比较了。对于这样的列，如不做特殊配置，dbus按片拉取的时候可能会出现长时间卡死，导致全量拉取topology重启。
+
+具体原因可参考：https://mp.weixin.qq.com/s?__biz=MzU4MTUwMTI4Mw==&mid=2247483749&idx=1&sn=e03d8c9a1e7db56c2615a8cebc289a73&chksm=fd47e969ca30607f5d42d0e5f5b227481526a56e0814ef6242d0046786bbac58241b01aa2d07&scene=0#rd
 
 所以，当分片列为md5、uuid或普通字符串时，建议进行拆片风格的特殊配置，以保证dbus顺利拉取全量数据。
 
 具体配置步骤如下：
 
 ![encode-project-user](img/manual/md5conf_1.png)
-
-
-
-![encode-project-user](img/manual/md5conf_2.png)

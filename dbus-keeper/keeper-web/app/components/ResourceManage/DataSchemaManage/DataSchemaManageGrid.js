@@ -1,8 +1,7 @@
-import React, { PropTypes, Component } from 'react'
-import { Popconfirm, Tooltip, Form, Select, Input, message,Table ,Tag} from 'antd'
-import { FormattedMessage } from 'react-intl'
+import React, {Component} from 'react'
+import {Form, message, Popconfirm, Select, Table, Tag, Tooltip} from 'antd'
+import {FormattedMessage} from 'react-intl'
 import OperatingButton from '@/app/components/common/OperatingButton'
-
 // 导入样式
 import styles from './res/styles/index.less'
 import Request from "@/app/utils/request";
@@ -11,19 +10,19 @@ const FormItem = Form.Item
 const Option = Select.Option
 
 export default class DataSchemaManageGrid extends Component {
-  constructor (props) {
+  constructor(props) {
     super(props)
-    this.state = {
-    }
+    this.state = {}
     this.tableWidth = [
       '4%',
       '8%',
-      '10%',
+      '8%',
+      '6%',
       '10%',
       '10%',
       '15%',
-      '13%',
-      '150px'
+      '10%',
+      '200px'
     ]
   }
 
@@ -46,7 +45,7 @@ export default class DataSchemaManageGrid extends Component {
     </Tooltip>
   )
 
-  renderStatus =(text, record, index) => {
+  renderStatus = (text, record, index) => {
     let color
     switch (text) {
       case 'active':
@@ -66,7 +65,23 @@ export default class DataSchemaManageGrid extends Component {
    * @description option render
    */
   renderOperating = (text, record, index) => {
-    const {onRerun, onModify, onAdd} = this.props
+    const {onRerun, onModify, onAdd, onMoveSchema} = this.props
+    const dsType = record.ds_type
+    const notLog = dsType === 'mysql' || dsType === 'oracle' || dsType === 'mongo'
+      || dsType === 'db2'
+    let menus
+    if (notLog) {
+      menus = [
+        {
+          text: <FormattedMessage
+            id="app.components.resourceManage.dataTable.batchMoveTopoTables"
+            defaultMessage="批量迁移"
+          />,
+          icon: 'car',
+          onClick: () => onMoveSchema(record)
+        }
+      ]
+    }
     return (
       <div>
         <OperatingButton icon="plus" onClick={() => onAdd(record)}>
@@ -76,7 +91,7 @@ export default class DataSchemaManageGrid extends Component {
           />
         </OperatingButton>
         <OperatingButton icon="edit" onClick={() => onModify(record)}>
-          <FormattedMessage id="app.common.modify" defaultMessage="修改" />
+          <FormattedMessage id="app.common.modify" defaultMessage="修改"/>
         </OperatingButton>
         <OperatingButton disabled={record.ds_type === 'db2'} icon="reload" onClick={() => onRerun(record)}>
           <FormattedMessage
@@ -84,11 +99,13 @@ export default class DataSchemaManageGrid extends Component {
             defaultMessage="拖回重跑"
           />
         </OperatingButton>
-        <Popconfirm title={<div><FormattedMessage id="app.common.delete" defaultMessage="删除" />？</div>} onConfirm={() => this.handleDelete(record)} okText="Yes" cancelText="No">
+        <Popconfirm title={<div><FormattedMessage id="app.common.delete" defaultMessage="删除"/>？</div>}
+                    onConfirm={() => this.handleDelete(record)} okText="Yes" cancelText="No">
           <OperatingButton icon="delete">
-            <FormattedMessage id="app.common.delete" defaultMessage="删除" />
+            <FormattedMessage id="app.common.delete" defaultMessage="删除"/>
           </OperatingButton>
         </Popconfirm>
+        <OperatingButton icon="ellipsis" menus={menus}/>
       </div>
     )
   }
@@ -113,15 +130,15 @@ export default class DataSchemaManageGrid extends Component {
       })
   }
 
-  render () {
+  render() {
 
     const {
       dataSchemaList,
       onPagination,
       onShowSizeChange
     } = this.props
-    const { loading, loaded } = dataSchemaList
-    const { total, pageSize, pageNum, list } = dataSchemaList.result
+    const {loading, loaded} = dataSchemaList
+    const {total, pageSize, pageNum, list} = dataSchemaList.result
     const dataSchema = dataSchemaList.result && dataSchemaList.result.list
     const columns = [
       {
@@ -174,21 +191,9 @@ export default class DataSchemaManageGrid extends Component {
             defaultMessage="更新时间"
           />
         ),
-        width: this.tableWidth[5],
+        width: this.tableWidth[4],
         dataIndex: 'create_time',
         key: 'create_time',
-        render: this.renderComponent(this.renderNomal)
-      },
-      {
-        title: (
-          <FormattedMessage
-            id="app.common.description"
-            defaultMessage="描述"
-          />
-        ),
-        width: this.tableWidth[6],
-        dataIndex: 'description',
-        key: 'description',
         render: this.renderComponent(this.renderNomal)
       },
       {
@@ -198,7 +203,7 @@ export default class DataSchemaManageGrid extends Component {
             defaultMessage="源Topic"
           />
         ),
-        width: this.tableWidth[6],
+        width: this.tableWidth[5],
         dataIndex: 'src_topic',
         key: 'src_topic',
         render: this.renderComponent(this.renderNomal)
@@ -218,11 +223,23 @@ export default class DataSchemaManageGrid extends Component {
       {
         title: (
           <FormattedMessage
+            id="app.common.description"
+            defaultMessage="描述"
+          />
+        ),
+        width: this.tableWidth[7],
+        dataIndex: 'description',
+        key: 'description',
+        render: this.renderComponent(this.renderNomal)
+      },
+      {
+        title: (
+          <FormattedMessage
             id="app.common.operate"
             defaultMessage="操作"
           />
         ),
-        width: this.tableWidth[7],
+        width: this.tableWidth[8],
         key: 'operate',
         render: this.renderComponent(this.renderOperating)
       }
@@ -250,5 +267,4 @@ export default class DataSchemaManageGrid extends Component {
   }
 }
 
-DataSchemaManageGrid.propTypes = {
-}
+DataSchemaManageGrid.propTypes = {}

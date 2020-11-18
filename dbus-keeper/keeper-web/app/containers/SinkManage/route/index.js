@@ -2,29 +2,42 @@
  * @author 戎晓伟
  * @description 路由
  */
-import HOCFactory from '@/app/utils/HOCFactory'
 // 导入自定义组件
 import App from '@/app/containers/App'
 import SinkHomeWrapper from '@/app/containers/SinkManage/SinkHomeWrapper'
-// HOCFactory({'siderHidden': true})(App)
+import SinkerTopologyWrapper from '@/app/containers/SinkManage/SinkerTopologyWrapper'
+import SinkerSchemaWrapper from '@/app/containers/SinkManage/SinkerSchemaWrapper'
+import SinkerTableWrapper from '@/app/containers/SinkManage/SinkerTableWrapper'
 // 导出路由
 export default (store) => [
   {
     path: '/sink-manage',
-    component: HOCFactory({'siderHidden': true})(App),
+    component: App,
     indexRoute: {
       onEnter: (_, replace) => {
         let TOKEN = window.localStorage.getItem('TOKEN')
         if (!TOKEN) {
           replace('/login')
         }
-        replace('/sink-manage/list')
+        replace('/sink-manage/sink-manage')
       }
     },
     childRoutes: [
       {
-        path: '/sink-manage/list',
+        path: '/sink-manage/sink-manage',
         component: SinkHomeWrapper
+      },
+      {
+        path: '/sink-manage/sinker-manage',
+        component: SinkerTopologyWrapper
+      },
+      {
+        path: '/sink-manage/schema-manage',
+        component: SinkerSchemaWrapper
+      },
+      {
+        path: '/sink-manage/table-manage',
+        component: SinkerTableWrapper
       }
     ]
   }

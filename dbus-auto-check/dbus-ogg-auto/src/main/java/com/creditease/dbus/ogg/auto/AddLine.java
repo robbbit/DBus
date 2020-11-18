@@ -1,3 +1,24 @@
+/*-
+ * <<
+ * DBus
+ * ==
+ * Copyright (C) 2016 - 2019 Bridata
+ * ==
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * >>
+ */
+
+
 package com.creditease.dbus.ogg.auto;
 
 import com.creditease.dbus.ogg.utils.FileUtil;
@@ -62,10 +83,6 @@ public class AddLine {
         FileUtil.WriteProperties(userDir + "/conf/replicate.properties", updateProps, proFilePath);
         //新增param.prm文件
         newParamFile();
-        //if (StringUtils.isNotBlank(schemaName)) {
-        //    addSchemaToParamFile();
-        //    System.out.println("add schema." + schemaName);
-        //}
         if (StringUtils.isNotBlank(tableNames)) {
             System.out.println("add tables." + tableNames);
             addTableToParamFile();
@@ -73,10 +90,6 @@ public class AddLine {
     }
 
     private static void newSchema() throws Exception {
-        if (StringUtils.isNotBlank(schemaName)) {
-            System.out.println("add schema." + schemaName);
-            addSchemaToParamFile();
-        }
         if (StringUtils.isNotBlank(tableNames)) {
             System.out.println("add tables." + tableNames);
             addTableToParamFile();
@@ -105,7 +118,6 @@ public class AddLine {
             sb.append("GROUPTRANSOPS 500\n");
             sb.append("MAXTRANSOPS 1000\n\n");
             sb.append("MAP DBUS.TEST_TABLE, TARGET DBUS.TEST_TABLE;\n");
-            sb.append("MAP DBUS.DB_FULL_PULL_REQUESTS, TARGET DBUS.DB_FULL_PULL_REQUESTS;\n");
             sb.append("MAP DBUS.DB_HEARTBEAT_MONITOR, TARGET DBUS.DB_HEARTBEAT_MONITOR;\n");
             sb.append("MAP DBUS.META_SYNC_EVENT, TARGET DBUS.META_SYNC_EVENT;\n\n");
 
@@ -119,87 +131,6 @@ public class AddLine {
             if (bw != null) {
                 bw.flush();
                 bw.close();
-            }
-        }
-    }
-
-    private static void addSchemaToParamFile() throws Exception {
-        BufferedWriter bw = null;
-        BufferedReader br = null;
-        try {
-            br = new BufferedReader(new InputStreamReader(new FileInputStream(paramFilePath)));
-            String line = null;
-            ArrayList<String> input = new ArrayList<>();
-            while ((line = br.readLine()) != null) {
-                input.add(line);
-            }
-            if (br != null) {
-                br.close();
-            }
-            ArrayList<String> output = new ArrayList<>(input);
-            boolean flag = false;
-            for (int i = 0; i < input.size(); i++) {
-                String s = input.get(i);
-                if (s.contains("DBUS.DB_FULL_PULL_REQUESTS")) {
-                    flag = true;
-                }
-                if (s.contains(schemaName)) {
-                    break;
-                }
-                if (flag && s.contains(";")) {
-                    s = s.substring(0, s.lastIndexOf(")"));
-                    s += " OR SCHEMA_NAME = '" + schemaName + "');";
-                    output.set(i, s);
-                    flag = false;
-                    break;
-                }
-            }
-            for (int i = 0; i < input.size(); i++) {
-                String s = input.get(i);
-                if (s.contains("DBUS.DB_HEARTBEAT_MONITOR")) {
-                    flag = true;
-                }
-                if (s.contains(schemaName)) {
-                    break;
-                }
-                if (flag && s.contains(";")) {
-                    s = s.substring(0, s.lastIndexOf(")"));
-                    s += " OR SCHEMA_NAME = '" + schemaName + "');";
-                    output.set(i, s);
-                    flag = false;
-                    break;
-                }
-            }
-            for (int i = 0; i < input.size(); i++) {
-                String s = input.get(i);
-                if (s.contains("DBUS.META_SYNC_EVENT")) {
-                    flag = true;
-                }
-                if (s.contains(schemaName)) {
-                    break;
-                }
-                if (flag && s.contains(";")) {
-                    s = s.substring(0, s.lastIndexOf(")"));
-                    s += " OR TABLE_OWNER = '" + schemaName + "');";
-                    output.set(i, s);
-                    break;
-                }
-            }
-            bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(paramFilePath)));
-            for (String s : output) {
-                bw.write(s + "\n");
-            }
-            bw.flush();
-        } catch (Exception e) {
-            System.out.println("Exception when add schema to file " + paramFilePath);
-            throw e;
-        } finally {
-            if (bw != null) {
-                bw.flush();
-                bw.close();
-            }
-            if (br != null) {
-                br.close();
             }
         }
     }
@@ -284,18 +215,18 @@ public class AddLine {
             if (line.hasOption("dirprmPath")) {
                 dirprmPath = line.getOptionValue("dirprmPath");
             }
-            if (line.hasOption("NLS_LANG")) {
+            if (line.hasOption("NLS_LANG") && StringUtils.isNotBlank(line.getOptionValue("NLS_LANG"))) {
                 NLS_LANG = line.getOptionValue("NLS_LANG");
             } else {
                 NLS_LANG = "AMERICAN_AMERICA.AL32UTF8";
             }
             if (line.hasOption("replicatName")) {
-                replicatName = line.getOptionValue("replicatName");
+                replicatName = line.getOptionValue("replicatName").toLowerCase();
             } else {
                 replicatName = dsName;
             }
-            paramFilePath = dirprmPath + "/" + replicatName.toLowerCase() + ".prm";
-            proFilePath = dirprmPath + "/" + replicatName.toLowerCase() + ".props";
+            paramFilePath = dirprmPath + "/" + replicatName + ".prm";
+            proFilePath = dirprmPath + "/" + replicatName + ".props";
             kafkaProducerPath = dirprmPath + "/kafka_producer.properties";
             if (line.hasOption("bootstrap.servers")) {
                 bootstrapServers = line.getOptionValue("bootstrap.servers");
